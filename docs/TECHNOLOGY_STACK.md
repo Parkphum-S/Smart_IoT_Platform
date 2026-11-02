@@ -40,18 +40,24 @@ It distinguishes approved decisions from proposals and unresolved implementation
 | Deployment | Docker Compose | Approved |
 | Hosting | Self-hosted ARM64 | Approved |
 
-## 4. Proposed Backend Stack
+## 4. Approved Backend Stack
 
-| Component | Proposed Technology | Status |
+| Component | Technology | Status |
 |---|---|---|
-| Programming language | Python | Proposed |
-| API framework | FastAPI | Proposed |
-| MQTT client library | Python MQTT client | Pending selection |
+| Programming language | Python | Approved |
+| API framework | FastAPI | Approved |
+| MQTT client library | gmqtt | Approved |
 | Application API | REST over HTTPS | Architectural direction |
 
-Python and FastAPI are proposed because of their approachable development model and suitability for API and IoT integration work.
+Python and FastAPI are approved because of their approachable development model and suitability for API and IoT integration work.
 
 The backend implementation must remain a Modular Monolith.
+
+The backend will use gmqtt with asynchronous I/O integrated with the FastAPI application lifecycle.
+
+MQTT communication must be isolated behind an internal MQTT Adapter so that the client library can be replaced without changing business modules.
+
+Before production use, validate automatic reconnection, QoS behavior, persistent sessions, message delivery, and ARM64 compatibility.
 
 ## 5. Proposed Frontend Supporting Tools
 
@@ -139,18 +145,16 @@ Redis will not be introduced unless a demonstrated requirement justifies its res
 
 The following items require further evaluation:
 
-1. Backend language and framework approval.
-2. Python MQTT client library.
-3. Frontend routing and state management libraries.
-4. Charting library.
-5. Reverse proxy implementation.
-6. Authentication and session strategy.
-7. Authorization roles and permission matrix.
-8. WebSocket event and reconnection strategy.
-9. PWA offline behavior and caching policy.
-10. Logging and monitoring implementation.
-11. Production TLS certificate management.
-12. Dependency versions and update policy.
+1. Frontend routing and state management libraries.
+2. Charting library.
+3. Reverse proxy implementation.
+4. Authentication and session strategy.
+5. Authorization roles and permission matrix.
+6. WebSocket event and reconnection strategy.
+7. PWA offline behavior and caching policy.
+8. Logging and monitoring implementation.
+9. Production TLS certificate management.
+10. Dependency versions and update policy.
 
 ## 11. Selection Principles
 
