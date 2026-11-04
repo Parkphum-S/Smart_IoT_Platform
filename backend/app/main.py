@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router
+from app.api.workspaces import router as workspaces_router
 
 from app.core.config import get_settings
 from app.infrastructure.database.session import (
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
 
     application.include_router(health_router)
     application.include_router(auth_router, prefix=settings.api_v1_prefix)
+    application.include_router(workspaces_router, prefix=settings.api_v1_prefix)
     return application
 
 
