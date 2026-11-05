@@ -18,6 +18,17 @@ class MembershipRepository:
     """Perform membership data access within the caller's transaction."""
 
     @staticmethod
+    async def get_workspace(
+        session: AsyncSession,
+        *,
+        workspace_id: UUID,
+    ) -> Workspace | None:
+        """Return a workspace without acquiring a write lock."""
+        statement = select(Workspace).where(Workspace.id == workspace_id)
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def get_workspace_for_update(
         session: AsyncSession,
         *,

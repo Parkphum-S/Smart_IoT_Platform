@@ -217,3 +217,302 @@ def test_create_workspace_rejects_unauthenticated_user():
 
     app.dependency_overrides.clear()
     assert response.status_code == 401
+
+
+def test_get_workspace_returns_details(monkeypatch):
+    from app.api import workspaces as workspaces_module
+
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        secret_key=TEST_SECRET,
+        trusted_origins=[TEST_ORIGIN],
+    )
+    current_user = SimpleNamespace(id=uuid4())
+    workspace_id = uuid4()
+    workspace = SimpleNamespace(
+        id=workspace_id,
+        name="Building A",
+        description="Smart building",
+        timezone="Asia/Bangkok",
+    )
+    service = SimpleNamespace(
+        get_workspace=AsyncMock(return_value=workspace),
+    )
+    monkeypatch.setattr(workspaces_module, "WorkspaceService", lambda: service)
+
+    app = make_test_client(settings, AsyncMock(), current_user)
+    with TestClient(app) as client:
+        response = client.get(f"/api/v1/workspaces/{workspace_id}")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "id": str(workspace_id),
+        "name": "Building A",
+        "description": "Smart building",
+        "timezone": "Asia/Bangkok",
+    }
+    service.get_workspace.assert_awaited_once()
+
+
+def test_get_workspace_rejects_user_without_permission(monkeypatch):
+    from app.api import workspaces as workspaces_module
+    from app.modules.users.services.workspace_service import (
+        WorkspacePermissionDenied,
+    )
+
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        secret_key=TEST_SECRET,
+        trusted_origins=[TEST_ORIGIN],
+    )
+    current_user = SimpleNamespace(id=uuid4())
+    service = SimpleNamespace(
+        get_workspace=AsyncMock(side_effect=WorkspacePermissionDenied),
+    )
+    monkeypatch.setattr(workspaces_module, "WorkspaceService", lambda: service)
+
+    app = make_test_client(settings, AsyncMock(), current_user)
+    with TestClient(app) as client:
+        response = client.get(f"/api/v1/workspaces/{uuid4()}")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 403
+
+
+def test_update_workspace_returns_updated_details(monkeypatch):
+    from app.api import workspaces as workspaces_module
+
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        secret_key=TEST_SECRET,
+        trusted_origins=[TEST_ORIGIN],
+    )
+    current_user = SimpleNamespace(id=uuid4())
+    workspace_id = uuid4()
+    workspace = SimpleNamespace(
+        id=workspace_id,
+        name="Building B",
+        description="Updated description",
+        timezone="Asia/Bangkok",
+    )
+    service = SimpleNamespace(
+        update_workspace=AsyncMock(return_value=workspace),
+    )
+    monkeypatch.setattr(workspaces_module, "WorkspaceService", lambda: service)
+
+    app = make_test_client(settings, AsyncMock(), current_user)
+    with TestClient(app) as client:
+        token = set_session_csrf(client)
+        response = client.patch(
+            f"/api/v1/workspaces/{workspace_id}",
+            json={
+                "name": "Building B",
+                "description": "Updated description",
+            },
+            headers=trusted_headers(token),
+        )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Building B"
+    assert response.json()["description"] == "Updated description"
+    service.update_workspace.assert_awaited_once()
+    assert service.update_workspace.await_args.kwargs["changes"] == {
+        "name": "Building B",
+        "description": "Updated description",
+    }
+
+
+def test_update_workspace_rejects_missing_csrf(monkeypatch):
+    from app.api import workspaces as workspaces_module
+
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        secret_key=TEST_SECRET,
+        trusted_origins=[TEST_ORIGIN],
+    )
+    current_user = SimpleNamespace(id=uuid4())
+    service = SimpleNamespace(update_workspace=AsyncMock())
+    monkeypatch.setattr(workspaces_module, "WorkspaceService", lambda: service)
+
+    app = make_test_client(settings, AsyncMock(), current_user)
+    with TestClient(app) as client:
+        client.cookies.set(SESSION_COOKIE_NAME, TEST_SESSION)
+        response = client.patch(
+            f"/api/v1/workspaces/{uuid4()}",
+            json={"name": "Changed"},
+            headers={"Origin": TEST_ORIGIN},
+        )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 403
+    service.update_workspace.assert_not_awaited()
+
+
+def test_update_workspace_rejects_invalid_timezone():
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        secret_key=TEST_SECRET,
+        trusted_origins=[TEST_ORIGIN],
+    )
+    current_user = SimpleNamespace(id=uuid4())
+    app = make_test_client(settings, AsyncMock(), current_user)
+
+    with TestClient(app) as client:
+        token = set_session_csrf(client)
+        response = client.patch(
+            f"/api/v1/workspaces/{uuid4()}",
+            json={"timezone": "Invalid/Timezone"},
+            headers=trusted_headers(token),
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422
+
+
+def test_update_workspace_rejects_empty_payload():
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        secret_key=TEST_SECRET,
+        trusted_origins=[TEST_ORIGIN],
+    )
+    current_user = SimpleNamespace(id=uuid4())
+    app = make_test_client(settings, AsyncMock(), current_user)
+
+    with TestClient(app) as client:
+        token = set_session_csrf(client)
+        response = client.patch(
+            f"/api/v1/workspaces/{uuid4()}",
+            json={},
+            headers=trusted_headers(token),
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422
+
+
+def test_get_workspace_returns_404_when_missing(monkeypatch):
+    from app.api import workspaces as workspaces_module
+    from app.modules.users.services.workspace_service import WorkspaceNotFound
+
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        secret_key=TEST_SECRET,
+        trusted_origins=[TEST_ORIGIN],
+    )
+    current_user = SimpleNamespace(id=uuid4())
+    service = SimpleNamespace(
+        get_workspace=AsyncMock(side_effect=WorkspaceNotFound),
+    )
+    monkeypatch.setattr(workspaces_module, "WorkspaceService", lambda: service)
+
+    app = make_test_client(settings, AsyncMock(), current_user)
+    with TestClient(app) as client:
+        response = client.get(f"/api/v1/workspaces/{uuid4()}")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+    service.get_workspace.assert_awaited_once()
+
+
+def test_update_workspace_returns_404_when_missing(monkeypatch):
+    from app.api import workspaces as workspaces_module
+    from app.modules.users.services.workspace_service import WorkspaceNotFound
+
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        secret_key=TEST_SECRET,
+        trusted_origins=[TEST_ORIGIN],
+    )
+    current_user = SimpleNamespace(id=uuid4())
+    service = SimpleNamespace(
+        update_workspace=AsyncMock(side_effect=WorkspaceNotFound),
+    )
+    monkeypatch.setattr(workspaces_module, "WorkspaceService", lambda: service)
+
+    app = make_test_client(settings, AsyncMock(), current_user)
+    with TestClient(app) as client:
+        token = set_session_csrf(client)
+        response = client.patch(
+            f"/api/v1/workspaces/{uuid4()}",
+            json={"name": "Updated"},
+            headers=trusted_headers(token),
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+    service.update_workspace.assert_awaited_once()
+
+
+def test_update_workspace_accepts_valid_timezone(monkeypatch):
+    from app.api import workspaces as workspaces_module
+
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        secret_key=TEST_SECRET,
+        trusted_origins=[TEST_ORIGIN],
+    )
+    current_user = SimpleNamespace(id=uuid4())
+    workspace_id = uuid4()
+    workspace = SimpleNamespace(
+        id=workspace_id,
+        name="Building C",
+        description=None,
+        timezone="Asia/Bangkok",
+    )
+    service = SimpleNamespace(
+        update_workspace=AsyncMock(return_value=workspace),
+    )
+    monkeypatch.setattr(workspaces_module, "WorkspaceService", lambda: service)
+
+    app = make_test_client(settings, AsyncMock(), current_user)
+    with TestClient(app) as client:
+        token = set_session_csrf(client)
+        response = client.patch(
+            f"/api/v1/workspaces/{workspace_id}",
+            json={"timezone": "Asia/Bangkok"},
+            headers=trusted_headers(token),
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["timezone"] == "Asia/Bangkok"
+    assert service.update_workspace.await_args.kwargs["changes"] == {
+        "timezone": "Asia/Bangkok",
+    }
+
+
+def test_update_workspace_rejects_null_name():
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        secret_key=TEST_SECRET,
+        trusted_origins=[TEST_ORIGIN],
+    )
+    current_user = SimpleNamespace(id=uuid4())
+    app = make_test_client(settings, AsyncMock(), current_user)
+
+    with TestClient(app) as client:
+        token = set_session_csrf(client)
+        response = client.patch(
+            f"/api/v1/workspaces/{uuid4()}",
+            json={"name": None},
+            headers=trusted_headers(token),
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422
