@@ -42,6 +42,12 @@ class WorkspaceMember(UUIDPrimaryKeyMixin, Base):
         UniqueConstraint("workspace_id", "user_id", name="uq_workspace_members_workspace_user"),
         CheckConstraint("role IN ('owner', 'admin', 'operator', 'viewer')", name="ck_workspace_members_role"),
         Index("ix_workspace_members_user_active", "user_id", "is_active"),
+        Index(
+            "uq_workspace_members_active_owner",
+            "workspace_id",
+            unique=True,
+            postgresql_where=text("role = 'owner' AND is_active IS TRUE"),
+        ),
     )
 
     workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False)
