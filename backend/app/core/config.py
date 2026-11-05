@@ -1,5 +1,6 @@
 """Central application configuration using Pydantic Settings."""
 
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -31,6 +32,7 @@ class Settings(BaseSettings):
 
     database_url: PostgresDsn
     migration_database_url: PostgresDsn | None = None
+    migration_database_role: str = "smart_iot_owner"
 
     db_pool_size: int = Field(default=5, ge=1, le=20)
     db_max_overflow: int = Field(default=5, ge=0, le=20)
@@ -42,6 +44,14 @@ class Settings(BaseSettings):
 
     secret_key: SecretStr | None = Field(default=None)
     trusted_origins: list[str] = Field(default_factory=list)
+
+    @field_validator("migration_database_role")
+    @classmethod
+    def validate_migration_database_role(cls, role: str) -> str:
+        """Accept only safe, lowercase PostgreSQL role identifiers."""
+        if re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", role) is None:
+            raise ValueError("Migration database role is invalid.")
+        return role
 
     @field_validator("trusted_origins")
     @classmethod

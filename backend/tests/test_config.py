@@ -14,7 +14,8 @@ TEST_MIGRATION_DATABASE_URL = (
 )
 
 
-def test_migration_database_url_is_optional():
+def test_migration_database_url_is_optional(monkeypatch):
+    monkeypatch.delenv("MIGRATION_DATABASE_URL", raising=False)
     settings = Settings(_env_file=None, database_url=TEST_DATABASE_URL)
     assert settings.migration_database_url is None
 
