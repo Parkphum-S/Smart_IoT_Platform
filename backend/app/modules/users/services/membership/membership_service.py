@@ -113,6 +113,27 @@ class MembershipService:
             raise InvalidRoleAssignment
         return target.value
 
+    async def list_members(
+        self,
+        session: AsyncSession,
+        *,
+        actor_id: UUID,
+        workspace_id: UUID,
+        include_inactive: bool = False,
+    ):
+        """List workspace memberships after checking read permission."""
+        await self._authorize_actor(
+            session,
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            permission=Permission.MEMBERS_READ,
+        )
+        return await self.repository.list_memberships(
+            session,
+            workspace_id=workspace_id,
+            include_inactive=include_inactive,
+        )
+
     async def add_member(
         self,
         session: AsyncSession,
