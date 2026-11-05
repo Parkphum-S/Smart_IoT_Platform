@@ -5,6 +5,7 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.users.models import User, Workspace, WorkspaceMember
+from app.modules.devices.models import Device, DeviceType
 
 
 async def create_user(
@@ -90,3 +91,51 @@ async def create_workspace_with_owner(
     )
 
     return workspace, owner, membership
+
+
+async def create_device_type(
+    session: AsyncSession,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    capabilities: dict | None = None,
+) -> DeviceType:
+    """Create and flush a device type."""
+    device_type = DeviceType(
+        name=name or f"Integration Device Type {uuid4().hex[:12]}",
+        description=description,
+        capabilities=capabilities or {},
+    )
+    session.add(device_type)
+    await session.flush()
+    return device_type
+
+
+async def create_device(
+    session: AsyncSession,
+    *,
+    workspace: Workspace,
+    device_type: DeviceType,
+    device_uid: str | None = None,
+    name: str | None = None,
+    manufacturer: str | None = None,
+    model: str | None = None,
+    protocol: str = "mqtt",
+    lifecycle_status: str = "pending_provisioning",
+    is_enabled: bool = True,
+) -> Device:
+    """Create and flush a device without invoking domain services."""
+    device = Device(
+        workspace_id=workspace.id,
+        device_type_id=device_type.id,
+        device_uid=device_uid or f"integration-device-{uuid4().hex}",
+        name=name or f"Integration Device {uuid4().hex[:12]}",
+        manufacturer=manufacturer,
+        model=model,
+        protocol=protocol,
+        lifecycle_status=lifecycle_status,
+        is_enabled=is_enabled,
+    )
+    session.add(device)
+    await session.flush()
+    return device

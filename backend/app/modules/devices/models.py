@@ -30,6 +30,7 @@ class Device(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("device_uid", name="uq_devices_device_uid"),
         Index("ix_devices_workspace_enabled", "workspace_id", "is_enabled"),
         Index("ix_devices_device_type_id", "device_type_id"),
+        Index("ix_devices_workspace_lifecycle_status", "workspace_id", "lifecycle_status"),
     )
 
     workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False)
@@ -40,6 +41,7 @@ class Device(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     model: Mapped[str | None] = mapped_column(String(120), nullable=True)
     protocol: Mapped[str] = mapped_column(String(40), nullable=False, default="mqtt", server_default="mqtt")
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    lifecycle_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class DeviceCredential(UUIDPrimaryKeyMixin, Base):
@@ -57,6 +59,114 @@ class DeviceCredential(UUIDPrimaryKeyMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    credential_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class DeviceGateway(Base):
+    """Gateway-specific configuration for a registered device."""
+
+    __tablename__ = "device_gateways"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "device_id",
+            name="uq_device_gateways_workspace_device",
+        ),
+        ForeignKeyConstraint(
+            ["device_id"],
+            ["devices.id"],
+            ondelete="RESTRICT",
+            name="fk_device_gateways_device",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "device_id"],
+            ["devices.workspace_id", "devices.id"],
+            ondelete="RESTRICT",
+            name="fk_device_gateways_workspace_device",
+        ),
+    )
+
+    device_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        primary_key=True,
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        nullable=False,
+    )
+    gateway_type: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+    )
+    adapter_key: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+    )
+    configuration: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class DeviceGatewayMember(Base):
+    """Maps a child device to one primary gateway in its workspace."""
+
+    __tablename__ = "device_gateway_members"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "child_device_id"],
+            ["devices.workspace_id", "devices.id"],
+            ondelete="RESTRICT",
+            name="fk_device_gateway_members_workspace_child",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "gateway_device_id"],
+            ["device_gateways.workspace_id", "device_gateways.device_id"],
+            ondelete="RESTRICT",
+            name="fk_device_gateway_members_workspace_gateway",
+        ),
+        CheckConstraint(
+            "child_device_id <> gateway_device_id",
+            name="ck_device_gateway_members_not_self",
+        ),
+        Index(
+            "ix_device_gateway_members_gateway_device_id",
+            "gateway_device_id",
+        ),
+    )
+
+    child_device_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        primary_key=True,
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        nullable=False,
+    )
+    gateway_device_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
 
 
 class DeviceStatus(Base):
