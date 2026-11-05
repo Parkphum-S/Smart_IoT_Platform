@@ -39,3 +39,15 @@ class GatewayMembershipConflict(DeviceError):
 
 class GatewayCycleDetected(DeviceError):
     """The requested gateway assignment would create a cycle."""
+
+
+class GatewaySecretAlreadyExists(DeviceError):
+    """A secret with the same name already exists for this gateway."""
+
+
+class GatewaySecretNotFound(DeviceError):
+    """The requested gateway secret does not exist."""
+
+
+class GatewaySecretEncryptionUnavailable(DeviceError):
+    """Gateway secret encryption is not configured."""

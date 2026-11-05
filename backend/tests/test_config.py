@@ -154,5 +154,155 @@ def test_production_accepts_valid_trusted_origins():
         debug=False,
         secret_key="x" * 32,
         trusted_origins=["https://example.com"],
+        gateway_encryption_key="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     )
     assert settings.trusted_origins == ["https://example.com"]
+
+
+# Gateway encryption settings tests
+
+def test_gateway_encryption_key_is_optional_outside_production():
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        app_env="testing",
+    )
+    assert settings.gateway_encryption_key is None
+
+
+def test_gateway_encryption_key_accepts_32_byte_base64_key():
+    import base64
+
+    encoded_key = base64.b64encode(bytes(range(32))).decode("ascii")
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        gateway_encryption_key=encoded_key,
+    )
+
+    assert settings.gateway_encryption_key is not None
+    assert settings.gateway_encryption_key.get_secret_value() == encoded_key
+    assert settings.gateway_encryption_key_version == "v1"
+
+
+@pytest.mark.parametrize(
+    "invalid_key",
+    [
+        "not-base64!",
+        "c2hvcnQ=",
+        "eA==",
+    ],
+)
+def test_invalid_gateway_encryption_key_is_rejected(invalid_key):
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            database_url=TEST_DATABASE_URL,
+            gateway_encryption_key=invalid_key,
+        )
+
+
+def test_production_requires_gateway_encryption_key():
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            database_url=TEST_DATABASE_URL,
+            app_env="production",
+            debug=False,
+            secret_key="x" * 32,
+            trusted_origins=["https://example.com"],
+        )
+
+
+def test_production_accepts_gateway_encryption_key():
+    import base64
+
+    encoded_key = base64.b64encode(bytes(range(32))).decode("ascii")
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        app_env="production",
+        debug=False,
+        secret_key="x" * 32,
+        gateway_encryption_key=encoded_key,
+        trusted_origins=["https://example.com"],
+    )
+
+    assert settings.gateway_encryption_key is not None
+
+
+def test_invalid_gateway_encryption_key_version_is_rejected():
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            database_url=TEST_DATABASE_URL,
+            gateway_encryption_key_version="../invalid",
+        )
+
+def test_gateway_encryption_keyring_accepts_multiple_versions():
+    import base64
+
+    key_v1 = base64.b64encode(bytes(range(32))).decode("ascii")
+    key_v2 = base64.b64encode(bytes(reversed(range(32)))).decode("ascii")
+
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        gateway_encryption_keys={"v1": key_v1, "v2": key_v2},
+        gateway_encryption_key_version="v2",
+    )
+
+    assert set(settings.gateway_encryption_keys) == {"v1", "v2"}
+    assert settings.gateway_encryption_key_version == "v2"
+
+
+def test_gateway_encryption_keyring_requires_active_version():
+    import base64
+
+    key_v1 = base64.b64encode(bytes(range(32))).decode("ascii")
+
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            database_url=TEST_DATABASE_URL,
+            gateway_encryption_keys={"v1": key_v1},
+            gateway_encryption_key_version="v2",
+        )
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        {"../invalid": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="},
+        {"v1": "not-base64!"},
+        {"v1": "c2hvcnQ="},
+    ],
+)
+def test_invalid_gateway_encryption_keyring_is_rejected(keys):
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            database_url=TEST_DATABASE_URL,
+            gateway_encryption_keys=keys,
+        )
+
+
+def test_production_accepts_gateway_encryption_keyring_without_legacy_key():
+    import base64
+
+    key_v1 = base64.b64encode(bytes(range(32))).decode("ascii")
+    key_v2 = base64.b64encode(bytes(reversed(range(32)))).decode("ascii")
+
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        app_env="production",
+        debug=False,
+        secret_key="x" * 32,
+        gateway_encryption_keys={"v1": key_v1, "v2": key_v2},
+        gateway_encryption_key_version="v2",
+        trusted_origins=["https://example.com"],
+    )
+
+    assert settings.gateway_encryption_key is None
+    assert settings.gateway_encryption_key_version == "v2"

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db_session
 from app.api.security import require_session_csrf
+from app.core.config import Settings, get_settings
 from app.modules.devices.models import Device, DeviceGateway, DeviceGatewayMember
 from app.modules.devices.schemas import (
     DeviceCreateRequest,
@@ -19,6 +20,9 @@ from app.modules.devices.schemas import (
     GatewayMembershipResponse,
     GatewayResponse,
     GatewayUpdateRequest,
+    GatewaySecretCreateRequest,
+    GatewaySecretUpdateRequest,
+    GatewaySecretResponse,
 )
 from app.modules.devices.services.device_service import DeviceService
 from app.modules.devices.services.exceptions import (
@@ -32,8 +36,12 @@ from app.modules.devices.services.exceptions import (
     GatewayCycleDetected,
     GatewayMembershipConflict,
     GatewayNotFound,
+    GatewaySecretAlreadyExists,
+    GatewaySecretEncryptionUnavailable,
+    GatewaySecretNotFound,
 )
 from app.modules.devices.services.gateway_service import GatewayService
+from app.modules.devices.services.gateway_secret_service import GatewaySecretService
 from app.modules.users.models import User
 
 router = APIRouter(
@@ -48,8 +56,18 @@ SessionCSRF = Annotated[None, Depends(require_session_csrf)]
 
 def _raise_device_http_error(exc: DeviceError) -> None:
     """Map domain errors to stable HTTP responses without exposing internals."""
-    if isinstance(exc, (DeviceNotFound, DeviceTypeNotFound, GatewayNotFound)):
+    if isinstance(
+        exc,
+        (
+            DeviceNotFound,
+            DeviceTypeNotFound,
+            GatewayNotFound,
+            GatewaySecretNotFound,
+        ),
+    ):
         code, detail = 404, "The requested device resource was not found."
+    elif isinstance(exc, GatewaySecretEncryptionUnavailable):
+        code, detail = 503, "Gateway secret encryption is unavailable."
     elif isinstance(exc, DevicePermissionDenied):
         code, detail = 403, "You do not have permission to perform this action."
     elif isinstance(exc, DeviceInvalidInput):
@@ -61,6 +79,7 @@ def _raise_device_http_error(exc: DeviceError) -> None:
             GatewayAlreadyRegistered,
             GatewayMembershipConflict,
             GatewayCycleDetected,
+            GatewaySecretAlreadyExists,
         ),
     ):
         code, detail = 409, "The requested device operation conflicts with its current state."
@@ -231,6 +250,117 @@ async def update_gateway(
     except DeviceError as exc:
         _raise_device_http_error(exc)
     return GatewayResponse.model_validate(gateway)
+
+
+@router.get(
+    "/{device_id}/gateway/secrets",
+    response_model=list[GatewaySecretResponse],
+)
+async def list_gateway_secrets(
+    workspace_id: UUID,
+    device_id: UUID,
+    session: DbSession,
+    current_user: AuthenticatedUser,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> list[GatewaySecretResponse]:
+    service = GatewaySecretService(settings=settings)
+    try:
+        secrets = await service.list_secrets(
+            session,
+            actor_id=current_user.id,
+            workspace_id=workspace_id,
+            gateway_device_id=device_id,
+        )
+    except DeviceError as exc:
+        _raise_device_http_error(exc)
+
+    return [GatewaySecretResponse.model_validate(item) for item in secrets]
+
+
+@router.post(
+    "/{device_id}/gateway/secrets",
+    response_model=GatewaySecretResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_gateway_secret(
+    workspace_id: UUID,
+    device_id: UUID,
+    payload: GatewaySecretCreateRequest,
+    session: DbSession,
+    current_user: AuthenticatedUser,
+    _: SessionCSRF,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> GatewaySecretResponse:
+    service = GatewaySecretService(settings=settings)
+    try:
+        secret = await service.create_secret(
+            session,
+            actor_id=current_user.id,
+            workspace_id=workspace_id,
+            gateway_device_id=device_id,
+            secret_name=payload.secret_name,
+            secret_value=payload.value.get_secret_value(),
+        )
+    except DeviceError as exc:
+        _raise_device_http_error(exc)
+
+    return GatewaySecretResponse.model_validate(secret)
+
+
+@router.put(
+    "/{device_id}/gateway/secrets/{secret_name}",
+    response_model=GatewaySecretResponse,
+)
+async def update_gateway_secret(
+    workspace_id: UUID,
+    device_id: UUID,
+    secret_name: str,
+    payload: GatewaySecretUpdateRequest,
+    session: DbSession,
+    current_user: AuthenticatedUser,
+    _: SessionCSRF,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> GatewaySecretResponse:
+    service = GatewaySecretService(settings=settings)
+    try:
+        secret = await service.update_secret(
+            session,
+            actor_id=current_user.id,
+            workspace_id=workspace_id,
+            gateway_device_id=device_id,
+            secret_name=secret_name,
+            secret_value=payload.value.get_secret_value(),
+        )
+    except DeviceError as exc:
+        _raise_device_http_error(exc)
+
+    return GatewaySecretResponse.model_validate(secret)
+
+
+@router.delete(
+    "/{device_id}/gateway/secrets/{secret_name}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_gateway_secret(
+    workspace_id: UUID,
+    device_id: UUID,
+    secret_name: str,
+    session: DbSession,
+    current_user: AuthenticatedUser,
+    _: SessionCSRF,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> None:
+    service = GatewaySecretService(settings=settings)
+    try:
+        await service.delete_secret(
+            session,
+            actor_id=current_user.id,
+            workspace_id=workspace_id,
+            gateway_device_id=device_id,
+            secret_name=secret_name,
+        )
+    except DeviceError as exc:
+        _raise_device_http_error(exc)
 
 
 @router.put(

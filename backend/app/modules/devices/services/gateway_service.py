@@ -66,6 +66,12 @@ class GatewayService:
         adapter_key: str,
         configuration: dict | None = None,
     ) -> DeviceGateway:
+        await self._authorize(
+            session,
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            permission=Permission.DEVICES_CREATE,
+        )
         await self.repository.lock_workspace(
             session, workspace_id=workspace_id
         )
@@ -84,7 +90,13 @@ class GatewayService:
         if device is None:
             raise DeviceNotFound
 
-        existing = await session.get(DeviceGateway, device_id)
+        existing_result = await session.execute(
+            select(DeviceGateway).where(
+                DeviceGateway.workspace_id == workspace_id,
+                DeviceGateway.device_id == device_id,
+            )
+        )
+        existing = existing_result.scalar_one_or_none()
         if existing is not None:
             raise GatewayAlreadyRegistered
 
@@ -133,6 +145,12 @@ class GatewayService:
         adapter_key: str | None = None,
         configuration: dict | None = None,
     ) -> DeviceGateway:
+        await self._authorize(
+            session,
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            permission=Permission.DEVICES_UPDATE,
+        )
         await self.repository.lock_workspace(
             session, workspace_id=workspace_id
         )
@@ -142,8 +160,16 @@ class GatewayService:
             workspace_id=workspace_id,
             permission=Permission.DEVICES_UPDATE,
         )
-        gateway = await session.get(DeviceGateway, device_id)
-        if gateway is None or gateway.workspace_id != workspace_id:
+        gateway_result = await session.execute(
+            select(DeviceGateway)
+            .where(
+                DeviceGateway.workspace_id == workspace_id,
+                DeviceGateway.device_id == device_id,
+            )
+            .with_for_update()
+        )
+        gateway = gateway_result.scalar_one_or_none()
+        if gateway is None:
             raise GatewayNotFound
 
         changed = []
@@ -218,6 +244,12 @@ class GatewayService:
         child_device_id: UUID,
         gateway_device_id: UUID,
     ) -> DeviceGatewayMember:
+        await self._authorize(
+            session,
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            permission=Permission.DEVICES_UPDATE,
+        )
         await self.repository.lock_workspace(
             session, workspace_id=workspace_id
         )
@@ -238,11 +270,27 @@ class GatewayService:
         )
         if child is None:
             raise DeviceNotFound
-        gateway = await session.get(DeviceGateway, gateway_device_id)
-        if gateway is None or gateway.workspace_id != workspace_id:
+        gateway_result = await session.execute(
+            select(DeviceGateway)
+            .where(
+                DeviceGateway.workspace_id == workspace_id,
+                DeviceGateway.device_id == gateway_device_id,
+            )
+            .with_for_update()
+        )
+        gateway = gateway_result.scalar_one_or_none()
+        if gateway is None:
             raise GatewayNotFound
 
-        existing = await session.get(DeviceGatewayMember, child_device_id)
+        membership_result = await session.execute(
+            select(DeviceGatewayMember)
+            .where(
+                DeviceGatewayMember.workspace_id == workspace_id,
+                DeviceGatewayMember.child_device_id == child_device_id,
+            )
+            .with_for_update()
+        )
+        existing = membership_result.scalar_one_or_none()
         if existing is not None:
             raise GatewayMembershipConflict(
                 "The child device already has a primary gateway."
@@ -282,6 +330,12 @@ class GatewayService:
         workspace_id: UUID,
         child_device_id: UUID,
     ) -> None:
+        await self._authorize(
+            session,
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            permission=Permission.DEVICES_UPDATE,
+        )
         await self.repository.lock_workspace(
             session, workspace_id=workspace_id
         )
@@ -291,8 +345,16 @@ class GatewayService:
             workspace_id=workspace_id,
             permission=Permission.DEVICES_UPDATE,
         )
-        membership = await session.get(DeviceGatewayMember, child_device_id)
-        if membership is None or membership.workspace_id != workspace_id:
+        membership_result = await session.execute(
+            select(DeviceGatewayMember)
+            .where(
+                DeviceGatewayMember.workspace_id == workspace_id,
+                DeviceGatewayMember.child_device_id == child_device_id,
+            )
+            .with_for_update()
+        )
+        membership = membership_result.scalar_one_or_none()
+        if membership is None:
             raise GatewayMembershipConflict("Gateway membership not found.")
 
         gateway_device_id = membership.gateway_device_id

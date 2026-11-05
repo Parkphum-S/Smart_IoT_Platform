@@ -1,5 +1,7 @@
 """Central application configuration using Pydantic Settings."""
 
+import base64
+import binascii
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -43,7 +45,90 @@ class Settings(BaseSettings):
     session_activity_update_interval_seconds: int = Field(default=300, ge=1)
 
     secret_key: SecretStr | None = Field(default=None)
+    gateway_encryption_key: SecretStr | None = Field(default=None)
+    gateway_encryption_keys: dict[str, SecretStr] = Field(default_factory=dict)
+    gateway_encryption_key_version: str = Field(
+        default="v1", min_length=1, max_length=40
+    )
     trusted_origins: list[str] = Field(default_factory=list)
+
+    @field_validator("gateway_encryption_key")
+    @classmethod
+    def validate_gateway_encryption_key(
+        cls, value: SecretStr | None
+    ) -> SecretStr | None:
+        """Require a Base64-encoded 32-byte AES-256 key."""
+        if value is None:
+            return None
+
+        try:
+            decoded = base64.b64decode(
+                value.get_secret_value(),
+                validate=True,
+            )
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError(
+                "GATEWAY_ENCRYPTION_KEY must be valid Base64."
+            ) from exc
+
+        if len(decoded) != 32:
+            raise ValueError(
+                "GATEWAY_ENCRYPTION_KEY must decode to exactly 32 bytes."
+            )
+
+        return value
+
+
+    @field_validator("gateway_encryption_keys")
+    @classmethod
+    def validate_gateway_encryption_keys(
+        cls, values: dict[str, SecretStr]
+    ) -> dict[str, SecretStr]:
+        """Validate every versioned Base64-encoded AES-256 key."""
+        decoded_keys: set[bytes] = set()
+
+        for version, value in values.items():
+            if (
+                not isinstance(version, str)
+                or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,39}", version)
+                is None
+            ):
+                raise ValueError("Gateway encryption key version is invalid.")
+
+            if not isinstance(value, SecretStr):
+                raise ValueError("Gateway encryption keys must be secret values.")
+
+            try:
+                decoded = base64.b64decode(
+                    value.get_secret_value(),
+                    validate=True,
+                )
+            except (binascii.Error, ValueError) as exc:
+                raise ValueError(
+                    "Gateway encryption keys must be valid Base64."
+                ) from exc
+
+            if len(decoded) != 32:
+                raise ValueError(
+                    "Gateway encryption keys must decode to exactly 32 bytes."
+                )
+
+            if decoded in decoded_keys:
+                raise ValueError(
+                    "Gateway encryption key material must be unique across versions."
+                )
+
+            decoded_keys.add(decoded)
+
+        return values
+
+    @field_validator("gateway_encryption_key_version")
+    @classmethod
+    def validate_gateway_encryption_key_version(cls, value: str) -> str:
+        """Validate the encryption key version identifier."""
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,39}", value) is None:
+            raise ValueError("Gateway encryption key version is invalid.")
+        return value
 
     @field_validator("migration_database_role")
     @classmethod
@@ -102,6 +187,17 @@ class Settings(BaseSettings):
         return validated
 
     @model_validator(mode="after")
+    def validate_keyring_settings(self) -> "Settings":
+        """Ensure the active version exists in a configured keyring."""
+        if self.gateway_encryption_keys and (
+            self.gateway_encryption_key_version not in self.gateway_encryption_keys
+        ):
+            raise ValueError(
+                "Active gateway encryption key version is missing from keyring."
+            )
+        return self
+
+    @model_validator(mode="after")
     def validate_session_settings(self) -> "Settings":
         """Ensure session lifetime settings are logically consistent."""
         if self.session_idle_timeout_seconds >= self.session_absolute_lifetime_seconds:
@@ -126,6 +222,14 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "SECRET_KEY must contain at least 32 characters in production."
                 )
+            if (
+                self.gateway_encryption_key is None
+                and not self.gateway_encryption_keys
+            ):
+                raise ValueError(
+                    "A gateway encryption key or keyring is required in production."
+                )
+
             if not self.trusted_origins:
                 raise ValueError(
                     "TRUSTED_ORIGINS must contain at least one origin in production."

@@ -92,6 +92,12 @@ class DeviceService:
         model: str | None = None,
         protocol: str = "mqtt",
     ) -> Device:
+        await self._authorize(
+            session,
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            permission=Permission.DEVICES_CREATE,
+        )
         await self.repository.lock_workspace(
             session, workspace_id=workspace_id
         )
@@ -210,6 +216,12 @@ class DeviceService:
         if not changes or not set(changes).issubset(allowed):
             raise DeviceInvalidInput("Invalid device update fields.")
 
+        await self._authorize(
+            session,
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            permission=Permission.DEVICES_UPDATE,
+        )
         await self.repository.lock_workspace(
             session, workspace_id=workspace_id
         )
@@ -263,6 +275,12 @@ class DeviceService:
         if not isinstance(new_status, str) or new_status not in LIFECYCLE_VALUES:
             raise DeviceInvalidInput("Unsupported device lifecycle status.")
 
+        await self._authorize(
+            session,
+            actor_id=actor_id,
+            workspace_id=workspace_id,
+            permission=Permission.DEVICES_UPDATE,
+        )
         await self.repository.lock_workspace(
             session, workspace_id=workspace_id
         )

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 
 class DeviceCreateRequest(BaseModel):
@@ -91,3 +91,24 @@ class GatewayMembershipResponse(BaseModel):
     workspace_id: UUID
     gateway_device_id: UUID
     created_at: datetime
+
+
+class GatewaySecretCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    secret_name: str = Field(min_length=1, max_length=120)
+    value: SecretStr = Field(min_length=1, max_length=16384)
+
+
+class GatewaySecretUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    value: SecretStr = Field(min_length=1, max_length=16384)
+
+
+class GatewaySecretResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    secret_name: str
+    created_at: datetime
+    updated_at: datetime

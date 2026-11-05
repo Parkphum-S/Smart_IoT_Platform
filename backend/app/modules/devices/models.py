@@ -123,6 +123,52 @@ class DeviceGateway(Base):
     )
 
 
+class DeviceGatewaySecret(Base):
+    """Encrypted secrets owned by a gateway within a workspace."""
+
+    __tablename__ = "device_gateway_secrets"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "gateway_device_id"],
+            ["device_gateways.workspace_id", "device_gateways.device_id"],
+            ondelete="CASCADE",
+            name="fk_device_gateway_secrets_workspace_gateway",
+        ),
+    )
+
+    workspace_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        primary_key=True,
+    )
+    gateway_device_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        primary_key=True,
+    )
+    secret_name: Mapped[str] = mapped_column(
+        String(120),
+        primary_key=True,
+    )
+    ciphertext: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+    key_version: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class DeviceGatewayMember(Base):
     """Maps a child device to one primary gateway in its workspace."""
 

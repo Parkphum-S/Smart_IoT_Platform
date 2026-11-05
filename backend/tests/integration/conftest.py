@@ -94,3 +94,130 @@ async def db_session(db_engine):
         finally:
             if outer_transaction.is_active:
                 await outer_transaction.rollback()
+
+
+@pytest.fixture
+async def gateway_secret_concurrency_context():
+    """Committed test records and independent sessions for PostgreSQL locking tests."""
+    from sqlalchemy import delete
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    from app.modules.devices.models import (
+        Device,
+        DeviceGateway,
+        DeviceGatewayMember,
+    )
+    from app.modules.users.models import User, Workspace, WorkspaceMember
+    from factories import (
+        create_device,
+        create_device_type,
+        create_workspace_with_owner,
+    )
+
+    settings = get_settings()
+    engine = create_database_engine(
+        str(settings.database_url),
+        pool_pre_ping=True,
+    )
+    factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    context = {}
+
+    try:
+        async with factory() as session:
+            async with session.begin():
+                workspace, owner, _ = await create_workspace_with_owner(session)
+                device_type = await create_device_type(session)
+                device = await create_device(
+                    session,
+                    workspace=workspace,
+                    device_type=device_type,
+                )
+                second_gateway_device = await create_device(
+                    session,
+                    workspace=workspace,
+                    device_type=device_type,
+                )
+                child_device = await create_device(
+                    session,
+                    workspace=workspace,
+                    device_type=device_type,
+                )
+
+                gateway = DeviceGateway(
+                    device_id=device.id,
+                    workspace_id=workspace.id,
+                    gateway_type="generic",
+                    adapter_key="integration",
+                    configuration={},
+                )
+                second_gateway = DeviceGateway(
+                    device_id=second_gateway_device.id,
+                    workspace_id=workspace.id,
+                    gateway_type="generic",
+                    adapter_key="integration",
+                    configuration={},
+                )
+                session.add_all([gateway, second_gateway])
+                await session.flush()
+
+                context.update(
+                    workspace_id=workspace.id,
+                    owner_id=owner.id,
+                    gateway_device_id=device.id,
+                    second_gateway_device_id=second_gateway_device.id,
+                    child_device_id=child_device.id,
+                    device_type_id=device_type.id,
+                )
+
+        context["session_factory"] = factory
+        yield context
+
+    finally:
+        if context:
+            async with factory() as session:
+                async with session.begin():
+                    await session.execute(
+                        delete(DeviceGatewayMember).where(
+                            DeviceGatewayMember.workspace_id
+                            == context["workspace_id"]
+                        )
+                    )
+                    await session.execute(
+                        delete(DeviceGateway).where(
+                            DeviceGateway.workspace_id == context["workspace_id"]
+                        )
+                    )
+                    await session.execute(
+                        delete(Device).where(
+                            Device.workspace_id == context["workspace_id"]
+                        )
+                    )
+                    await session.execute(
+                        delete(WorkspaceMember).where(
+                            WorkspaceMember.workspace_id == context["workspace_id"]
+                        )
+                    )
+                    await session.execute(
+                        delete(Workspace).where(
+                            Workspace.id == context["workspace_id"]
+                        )
+                    )
+                    await session.execute(
+                        delete(User).where(
+                            User.id == context["owner_id"]
+                        )
+                    )
+                    from app.modules.devices.models import DeviceType
+
+                    await session.execute(
+                        delete(DeviceType).where(
+                            DeviceType.id == context["device_type_id"]
+                        )
+                    )
+
+        await engine.dispose()

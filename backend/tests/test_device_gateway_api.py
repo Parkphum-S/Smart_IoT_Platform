@@ -26,6 +26,9 @@ from app.modules.devices.services.exceptions import (
     GatewayCycleDetected,
     GatewayMembershipConflict,
     GatewayNotFound,
+    GatewaySecretAlreadyExists,
+    GatewaySecretEncryptionUnavailable,
+    GatewaySecretNotFound,
 )
 
 
@@ -1102,3 +1105,376 @@ def test_gateway_registration_rejects_untrusted_origin(monkeypatch):
 
     assert response.status_code == 403
     service_mock.assert_not_awaited()
+
+
+# GATEWAY_SECRET_API_TESTS_V1
+# ---------------------------------------------------------------------------
+# Gateway secret API
+# ---------------------------------------------------------------------------
+
+
+def make_gateway_secret(**overrides):
+    now = datetime.now(timezone.utc)
+    values = {
+        "secret_name": "mqtt_password",
+        "created_at": now,
+        "updated_at": now,
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
+
+def test_list_gateway_secrets_success(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    secret = make_gateway_secret()
+    service_mock = AsyncMock(return_value=[secret])
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "list_secrets",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets"
+        )
+        response = client.get(path)
+
+    assert response.status_code == 200
+    assert response.json()[0]["secret_name"] == "mqtt_password"
+    assert "value" not in response.json()[0]
+    assert "ciphertext" not in response.json()[0]
+    assert_service_call(
+        service_mock,
+        actor_id=user.id,
+        workspace_id=gateway.workspace_id,
+        gateway_device_id=gateway.device_id,
+    )
+
+
+def test_create_gateway_secret_success_and_does_not_echo_value(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    secret = make_gateway_secret()
+    secret_value = "sensitive-test-value"
+    service_mock = AsyncMock(return_value=secret)
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "create_secret",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        token = set_session_csrf(client)
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets"
+        )
+        response = client.post(
+            path,
+            json={
+                "secret_name": secret.secret_name,
+                "value": secret_value,
+            },
+            headers=trusted_headers(token),
+        )
+
+    assert response.status_code == 201
+    assert response.json()["secret_name"] == secret.secret_name
+    assert "value" not in response.json()
+    assert "ciphertext" not in response.json()
+    assert secret_value not in response.text
+    assert_service_call(
+        service_mock,
+        actor_id=user.id,
+        workspace_id=gateway.workspace_id,
+        gateway_device_id=gateway.device_id,
+        secret_name=secret.secret_name,
+        secret_value=secret_value,
+    )
+
+
+def test_create_gateway_secret_requires_csrf(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    service_mock = AsyncMock(return_value=make_gateway_secret())
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "create_secret",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets"
+        )
+        response = client.post(
+            path,
+            json={
+                "secret_name": "mqtt_password",
+                "value": "sensitive-test-value",
+            },
+            headers={"Origin": TEST_ORIGIN},
+        )
+
+    assert response.status_code == 403
+    service_mock.assert_not_awaited()
+
+
+def test_create_gateway_secret_rejects_invalid_body(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    service_mock = AsyncMock(return_value=make_gateway_secret())
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "create_secret",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        token = set_session_csrf(client)
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets"
+        )
+        response = client.post(
+            path,
+            json={
+                "secret_name": "",
+                "value": "",
+                "unexpected": True,
+            },
+            headers=trusted_headers(token),
+        )
+
+    assert response.status_code == 422
+    service_mock.assert_not_awaited()
+
+
+def test_update_gateway_secret_success_and_does_not_echo_value(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    secret = make_gateway_secret()
+    secret_value = "updated-sensitive-value"
+    service_mock = AsyncMock(return_value=secret)
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "update_secret",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        token = set_session_csrf(client)
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets/{secret.secret_name}"
+        )
+        response = client.put(
+            path,
+            json={"value": secret_value},
+            headers=trusted_headers(token),
+        )
+
+    assert response.status_code == 200
+    assert response.json()["secret_name"] == secret.secret_name
+    assert "value" not in response.json()
+    assert "ciphertext" not in response.json()
+    assert secret_value not in response.text
+    assert_service_call(
+        service_mock,
+        actor_id=user.id,
+        workspace_id=gateway.workspace_id,
+        gateway_device_id=gateway.device_id,
+        secret_name=secret.secret_name,
+        secret_value=secret_value,
+    )
+
+
+def test_update_gateway_secret_requires_csrf(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    service_mock = AsyncMock(return_value=make_gateway_secret())
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "update_secret",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets/mqtt_password"
+        )
+        response = client.put(
+            path,
+            json={"value": "updated-sensitive-value"},
+            headers={"Origin": TEST_ORIGIN},
+        )
+
+    assert response.status_code == 403
+    service_mock.assert_not_awaited()
+
+
+def test_delete_gateway_secret_success(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    service_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "delete_secret",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        token = set_session_csrf(client)
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets/mqtt_password"
+        )
+        response = client.delete(
+            path,
+            headers=trusted_headers(token),
+        )
+
+    assert response.status_code == 204
+    assert_service_call(
+        service_mock,
+        actor_id=user.id,
+        workspace_id=gateway.workspace_id,
+        gateway_device_id=gateway.device_id,
+        secret_name="mqtt_password",
+    )
+
+
+def test_delete_gateway_secret_requires_csrf(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    service_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "delete_secret",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets/mqtt_password"
+        )
+        response = client.delete(
+            path,
+            headers={"Origin": TEST_ORIGIN},
+        )
+
+    assert response.status_code == 403
+    service_mock.assert_not_awaited()
+
+
+def test_gateway_secret_not_found_maps_to_404(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    service_mock = AsyncMock(side_effect=GatewaySecretNotFound())
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "update_secret",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        token = set_session_csrf(client)
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets/mqtt_password"
+        )
+        response = client.put(
+            path,
+            json={"value": "updated-sensitive-value"},
+            headers=trusted_headers(token),
+        )
+
+    assert response.status_code == 404
+    service_mock.assert_awaited_once()
+
+
+def test_gateway_secret_already_exists_maps_to_409(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    service_mock = AsyncMock(side_effect=GatewaySecretAlreadyExists())
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "create_secret",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        token = set_session_csrf(client)
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets"
+        )
+        response = client.post(
+            path,
+            json={
+                "secret_name": "mqtt_password",
+                "value": "sensitive-test-value",
+            },
+            headers=trusted_headers(token),
+        )
+
+    assert response.status_code == 409
+    service_mock.assert_awaited_once()
+
+
+def test_gateway_secret_encryption_unavailable_maps_to_503(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    service_mock = AsyncMock(
+        side_effect=GatewaySecretEncryptionUnavailable()
+    )
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "create_secret",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        token = set_session_csrf(client)
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets"
+        )
+        response = client.post(
+            path,
+            json={
+                "secret_name": "mqtt_password",
+                "value": "sensitive-test-value",
+            },
+            headers=trusted_headers(token),
+        )
+
+    assert response.status_code == 503
+    service_mock.assert_awaited_once()
+
+
+def test_gateway_secret_permission_denied_maps_to_403(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    gateway = make_gateway()
+    service_mock = AsyncMock(side_effect=DevicePermissionDenied())
+    monkeypatch.setattr(
+        devices_module.GatewaySecretService,
+        "list_secrets",
+        service_mock,
+    )
+
+    with client_context(user) as client:
+        path = (
+            f"{device_base_path(gateway.workspace_id)}"
+            f"/{gateway.device_id}/gateway/secrets"
+        )
+        response = client.get(path)
+
+    assert response.status_code == 403
+    service_mock.assert_awaited_once()

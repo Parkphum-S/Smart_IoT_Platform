@@ -14,6 +14,7 @@ EXPECTED_TABLES = {
     "telemetry_metrics", "telemetry_readings",
     "device_events", "alert_rules", "alerts", "notifications", "audit_logs",
     "membership_history",
+    "device_gateways", "device_gateway_members", "device_gateway_secrets",
     "automation_rules", "automation_conditions", "automation_actions",
     "automation_executions",
 }
@@ -21,7 +22,7 @@ EXPECTED_TABLES = {
 
 def test_all_expected_tables_are_registered():
     assert set(Base.metadata.tables) == EXPECTED_TABLES
-    assert len(Base.metadata.tables) == 24
+    assert len(Base.metadata.tables) == 27
 
 
 def test_every_table_has_a_primary_key():
