@@ -6,6 +6,12 @@ from pydantic import ValidationError
 from app.core.config import Settings
 
 
+@pytest.fixture(autouse=True)
+def isolate_settings_environment(monkeypatch):
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("TRUSTED_ORIGINS", raising=False)
+
+
 TEST_DATABASE_URL = (
     "postgresql+asyncpg://test_user:test_password@127.0.0.1:5432/test_db"
 )

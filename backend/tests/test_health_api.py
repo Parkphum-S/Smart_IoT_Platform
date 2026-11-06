@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def test_app(monkeypatch):
-    """Create an application with an isolated test database URL."""
+    """Create an application with isolated test settings."""
+    monkeypatch.setenv("APP_ENV", "testing")
     monkeypatch.setenv(
         "DATABASE_URL",
         "postgresql+asyncpg://test_user:test_password@127.0.0.1:5432/test_db",
@@ -15,8 +16,11 @@ def test_app(monkeypatch):
     from app.core.config import get_settings
     get_settings.cache_clear()
 
-    from app.main import create_app
-    return create_app()
+    try:
+        from app.main import create_app
+        yield create_app()
+    finally:
+        get_settings.cache_clear()
 
 
 def test_health_endpoint_returns_healthy(test_app):
