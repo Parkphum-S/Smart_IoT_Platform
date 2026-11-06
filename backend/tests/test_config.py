@@ -306,3 +306,43 @@ def test_production_accepts_gateway_encryption_keyring_without_legacy_key():
 
     assert settings.gateway_encryption_key is None
     assert settings.gateway_encryption_key_version == "v2"
+
+
+@pytest.mark.parametrize(
+    "role",
+    [
+        "smart_iot_owner",
+        "smart_iot_test_owner",
+        "owner123",
+        "_owner",
+    ],
+)
+def test_valid_migration_database_roles_are_accepted(role):
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        migration_database_role=role,
+    )
+
+    assert settings.migration_database_role == role
+
+
+@pytest.mark.parametrize(
+    "role",
+    [
+        "Owner",
+        "owner-role",
+        "owner.role",
+        "owner; DROP TABLE users",
+        "owner role",
+        "",
+        "a" * 64,
+    ],
+)
+def test_invalid_migration_database_roles_are_rejected(role):
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            database_url=TEST_DATABASE_URL,
+            migration_database_role=role,
+        )

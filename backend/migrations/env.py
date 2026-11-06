@@ -4,9 +4,11 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
 from sqlalchemy.engine import Connection, make_url
-from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from app.infrastructure.database.migration_runner import (
+    run_migrations_with_engine,
+)
 
 from app.core.config import get_settings
 from app.infrastructure.database.base import Base
@@ -101,21 +103,15 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    """Create an async engine and run migrations."""
+    """Run migrations using the dedicated migration engine."""
     configuration = config.get_section(config.config_ini_section) or {}
-    configuration["sqlalchemy.url"] = get_migration_database_url()
-    connectable = async_engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+
+    await run_migrations_with_engine(
+        configuration=configuration,
+        database_url=get_migration_database_url(),
+        database_role=get_migration_database_role(),
+        migration_callback=do_run_migrations,
     )
-    async with connectable.connect() as connection:
-        await connection.exec_driver_sql(
-            f"SET ROLE {get_migration_database_role()}"
-        )
-        await connection.commit()
-        await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
 
 
 def run_migrations_online() -> None:
