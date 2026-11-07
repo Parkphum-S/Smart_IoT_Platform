@@ -3,13 +3,36 @@
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import Settings
+import app.core.config as config
+from app.core.config import Settings, get_settings
 
 
 @pytest.fixture(autouse=True)
 def isolate_settings_environment(monkeypatch):
     monkeypatch.delenv("APP_ENV", raising=False)
     monkeypatch.delenv("TRUSTED_ORIGINS", raising=False)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+def clear_settings_environment(monkeypatch):
+    """Remove inherited settings that could affect dotenv tests."""
+    for name in (
+        "APP_ENV",
+        "DATABASE_URL",
+        "MIGRATION_DATABASE_URL",
+        "MIGRATION_DATABASE_ROLE",
+        "API_V1_PREFIX",
+        "DEBUG",
+        "SECRET_KEY",
+        "GATEWAY_ENCRYPTION_KEY",
+        "GATEWAY_ENCRYPTION_KEYS",
+        "GATEWAY_ENCRYPTION_KEY_VERSION",
+        "TRUSTED_ORIGINS",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    get_settings.cache_clear()
 
 
 TEST_DATABASE_URL = (
@@ -352,3 +375,140 @@ def test_invalid_migration_database_roles_are_rejected(role):
             database_url=TEST_DATABASE_URL,
             migration_database_role=role,
         )
+def test_get_settings_uses_development_dotenv(tmp_path, monkeypatch):
+    clear_settings_environment(monkeypatch)
+    monkeypatch.setattr(config, "BACKEND_DIR", tmp_path)
+    monkeypatch.setenv("APP_ENV", "development")
+    (tmp_path / ".env").write_text(
+        f"APP_ENV=development\nDATABASE_URL={TEST_DATABASE_URL}\n"
+        "API_V1_PREFIX=/development-env\n",
+        encoding="utf-8",
+    )
+
+    settings = get_settings()
+
+    assert settings.app_env == "development"
+    assert settings.api_v1_prefix == "/development-env"
+
+
+def test_get_settings_uses_integration_dotenv_only(tmp_path, monkeypatch):
+    clear_settings_environment(monkeypatch)
+    monkeypatch.setattr(config, "BACKEND_DIR", tmp_path)
+    monkeypatch.setenv("APP_ENV", "testing")
+    (tmp_path / ".env").write_text(
+        f"APP_ENV=production\nDATABASE_URL={TEST_DATABASE_URL}\n"
+        "API_V1_PREFIX=/production-env\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".env.integration").write_text(
+        f"APP_ENV=testing\nDATABASE_URL={TEST_DATABASE_URL}\n"
+        f"MIGRATION_DATABASE_URL={TEST_MIGRATION_DATABASE_URL}\n"
+        "MIGRATION_DATABASE_ROLE=smart_iot_test_owner\n"
+        "API_V1_PREFIX=/integration-env\n",
+        encoding="utf-8",
+    )
+
+    settings = get_settings()
+
+    assert settings.app_env == "testing"
+    assert settings.api_v1_prefix == "/integration-env"
+    assert str(settings.migration_database_url) == TEST_MIGRATION_DATABASE_URL
+    assert settings.migration_database_role == "smart_iot_test_owner"
+
+
+def test_get_settings_uses_production_dotenv(tmp_path, monkeypatch):
+    clear_settings_environment(monkeypatch)
+    monkeypatch.setattr(config, "BACKEND_DIR", tmp_path)
+    monkeypatch.setenv("APP_ENV", "production")
+    (tmp_path / ".env").write_text(
+        f"APP_ENV=production\nDATABASE_URL={TEST_DATABASE_URL}\n"
+        "DEBUG=false\n"
+        f"SECRET_KEY={'x' * 32}\n"
+        "GATEWAY_ENCRYPTION_KEY="
+        "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=\n"
+        'TRUSTED_ORIGINS=["https://example.com"]\n'
+        "API_V1_PREFIX=/production-env\n",
+        encoding="utf-8",
+    )
+
+    settings = get_settings()
+
+    assert settings.app_env == "production"
+    assert settings.api_v1_prefix == "/production-env"
+
+
+def test_get_settings_process_environment_overrides_dotenv(
+    tmp_path, monkeypatch
+):
+    clear_settings_environment(monkeypatch)
+    monkeypatch.setattr(config, "BACKEND_DIR", tmp_path)
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("API_V1_PREFIX", "/process-env")
+    (tmp_path / ".env").write_text(
+        f"DATABASE_URL={TEST_DATABASE_URL}\n"
+        "API_V1_PREFIX=/dotenv\n",
+        encoding="utf-8",
+    )
+
+    assert get_settings().api_v1_prefix == "/process-env"
+
+
+def test_get_settings_without_app_env_does_not_load_dotenv(
+    tmp_path, monkeypatch
+):
+    clear_settings_environment(monkeypatch)
+    monkeypatch.setattr(config, "BACKEND_DIR", tmp_path)
+    (tmp_path / ".env").write_text(
+        f"DATABASE_URL={TEST_DATABASE_URL}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+def test_direct_settings_does_not_load_dotenv_by_default(
+    tmp_path, monkeypatch
+):
+    clear_settings_environment(monkeypatch)
+    monkeypatch.setattr(config, "BACKEND_DIR", tmp_path)
+    (tmp_path / ".env").write_text(
+        f"DATABASE_URL={TEST_DATABASE_URL}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_get_settings_rejects_invalid_app_env(monkeypatch):
+    clear_settings_environment(monkeypatch)
+    monkeypatch.setenv("APP_ENV", "unknown")
+
+    with pytest.raises(ValueError, match="APP_ENV must be"):
+        get_settings()
+
+
+def test_get_settings_cache_clear_reloads_dotenv(tmp_path, monkeypatch):
+    clear_settings_environment(monkeypatch)
+    monkeypatch.setattr(config, "BACKEND_DIR", tmp_path)
+    monkeypatch.setenv("APP_ENV", "development")
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        f"DATABASE_URL={TEST_DATABASE_URL}\n"
+        "API_V1_PREFIX=/first\n",
+        encoding="utf-8",
+    )
+
+    first = get_settings()
+    env_file.write_text(
+        f"DATABASE_URL={TEST_DATABASE_URL}\n"
+        "API_V1_PREFIX=/second\n",
+        encoding="utf-8",
+    )
+    assert get_settings() is first
+
+    get_settings.cache_clear()
+    second = get_settings()
+
+    assert second.api_v1_prefix == "/second"

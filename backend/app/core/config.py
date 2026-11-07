@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import os
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -19,7 +20,6 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=BACKEND_DIR / ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -240,5 +240,18 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return a cached application settings instance."""
-    return Settings()
+    """Return cached settings using an explicitly selected environment file."""
+    app_env = os.environ.get("APP_ENV")
+
+    if app_env is None:
+        env_file = None
+    elif app_env in {"development", "production"}:
+        env_file = BACKEND_DIR / ".env"
+    elif app_env == "testing":
+        env_file = BACKEND_DIR / ".env.integration"
+    else:
+        raise ValueError(
+            "APP_ENV must be development, testing, or production."
+        )
+
+    return Settings(_env_file=env_file)
