@@ -1,61 +1,59 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+// นำเข้าหน้าจอต่างๆ
 import HomeScreen from './src/screens/HomeScreen';
-import SmartScreen from './src/screens/SmartScreen';
+import DeviceScreen from './src/screens/DeviceScreen';
+import AutomationScreen from './src/screens/AutomationScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
-import DeviceDetailScreen from './src/screens/modals/DeviceDetailScreen';
-import AddDeviceScreen from './src/screens/modals/AddDeviceScreen';
-import RoomManagementScreen from './src/screens/modals/RoomManagementScreen';
-import WorkspaceSwitcherScreen from './src/screens/modals/WorkspaceSwitcherScreen';
-
-const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
-
-function MainTabNavigator() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: '#059669',
-        tabBarInactiveTintColor: '#94A3B8',
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: '#F1F5F9',
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
-        },
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName: any = 'home';
-          if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
-          else if (route.name === 'Smart') iconName = focused ? 'flash' : 'flash-outline';
-          else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'หน้าแรก' }} />
-      <Tab.Screen name="Smart" component={SmartScreen} options={{ title: 'อัตโนมัติ' }} />
-      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'โปรไฟล์' }} />
-    </Tab.Navigator>
-  );
-}
 
 export default function App() {
+  const [currentTab, setCurrentTab] = React.useState<'home' | 'devices' | 'automation' | 'profile'>('home');
+
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-        <Stack.Screen name="DeviceDetail" component={DeviceDetailScreen} />
-        <Stack.Screen name="AddDevice" component={AddDeviceScreen} />
-        <Stack.Screen name="RoomManagement" component={RoomManagementScreen} />
-        <Stack.Screen name="WorkspaceSwitcher" component={WorkspaceSwitcherScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="dark" />
+      
+      {/* ส่วนแสดงผลหน้าจอตาม Tab ที่เลือก */}
+      <div style={{ flex: 1 }}>
+        {currentTab === 'home' && <HomeScreen />}
+        {currentTab === 'devices' && <DeviceScreen />}
+        {currentTab === 'automation' && <AutomationScreen />}
+        {currentTab === 'profile' && <ProfileScreen />}
+      </div>
+
+      {/* Bottom Navigation Bar */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setCurrentTab('home')}>
+          <Ionicons name={currentTab === 'home' ? 'home' : 'home-outline'} size={20} color={currentTab === 'home' ? '#059669' : '#94A3B8'} />
+          <Text style={[styles.tabText, currentTab === 'home' && styles.tabTextActive]}>หน้าแรก</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.tabItem} onPress={() => setCurrentTab('devices')}>
+          <Ionicons name={currentTab === 'devices' ? 'hardware-chip' : 'hardware-chip-outline'} size={20} color={currentTab === 'devices' ? '#059669' : '#94A3B8'} />
+          <Text style={[styles.tabText, currentTab === 'devices' && styles.tabTextActive]}>อุปกรณ์</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.tabItem} onPress={() => setCurrentTab('automation')}>
+          <Ionicons name={currentTab === 'automation' ? 'git-branch' : 'git-branch-outline'} size={20} color={currentTab === 'automation' ? '#059669' : '#94A3B8'} />
+          <Text style={[styles.tabText, currentTab === 'automation' && styles.tabTextActive]}>อัตโนมัติ</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.tabItem} onPress={() => setCurrentTab('profile')}>
+          <Ionicons name={currentTab === 'profile' ? 'person' : 'person-outline'} size={20} color={currentTab === 'profile' ? '#059669' : '#94A3B8'} />
+          <Text style={[styles.tabText, currentTab === 'profile' && styles.tabTextActive]}>โปรไฟล์</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  tabBar: { flexDirection: 'row', backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingVertical: 8, paddingHorizontal: 12 },
+  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tabText: { fontSize: 10, color: '#94A3B8', fontWeight: '600', marginTop: 2 },
+  tabTextActive: { color: '#059669', fontWeight: 'bold' },
+});

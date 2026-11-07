@@ -1,166 +1,193 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Switch, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
 
-export default function HomeScreen({ navigation }: any) {
-  const [selectedRoom, setSelectedRoom] = useState('ทั้งหมด');
-  const rooms = ['ทั้งหมด', 'แปลงเกษตรโซน A', 'โรงเรือนเพาะชำ', 'แปลงเกษตรโซน B'];
+interface ZoneData {
+  id: number;
+  name: string;
+  typeLabel: string;
+  workspace: string;
+  devicesCount: number;
+  rawTemp: number;
+  rawHumidity: number;
+  npk: string;
+  ph: string;
+  relayStatus: string;
+}
 
-  const [weather, setWeather] = useState({
-    temp: '--',
-    humidity: '--',
-    description: 'กำลังโหลดอากาศ...',
-    locationName: 'กำลังระบุพิกัดฟาร์ม...',
-  });
+const ZONES: ZoneData[] = [
+  {
+    id: 1,
+    name: 'แปลงเกษตรโซน A',
+    typeLabel: 'โซนพืชสวน',
+    workspace: 'ฟาร์มตัวอย่าง',
+    devicesCount: 2,
+    rawTemp: 32.5,
+    rawHumidity: 68,
+    npk: 'N: 40, P: 25, K: 60 mg/kg',
+    ph: '6.5',
+    relayStatus: 'เปิดใช้งาน (ปั๊มน้ำหลัก)',
+  },
+  {
+    id: 2,
+    name: 'โรงเรือนเพาะชำ',
+    typeLabel: 'โซนไม้ดอก',
+    workspace: 'ฟาร์มตัวอย่าง',
+    devicesCount: 1,
+    rawTemp: 29.0,
+    rawHumidity: 75,
+    npk: 'N: 35, P: 30, K: 50 mg/kg',
+    ph: '6.8',
+    relayStatus: 'ปิดใช้งาน (พ่นหมอก)',
+  },
+];
 
-  const [devices, setDevices] = useState([
-    { id: 'dev-1', name: 'ปั๊มน้ำหลัก (โซน A)', room: 'แปลงเกษตรโซน A', isOn: true },
-    { id: 'dev-2', name: 'ระบบพ่นหมอกโรงเรือน', room: 'โรงเรือนเพาะชำ', isOn: false },
-    { id: 'dev-3', name: 'วาล์วน้ำหยด (โซน B)', room: 'แปลงเกษตรโซน B', isOn: true },
-  ]);
+export default function HomeScreen() {
+  const [selectedZone, setSelectedZone] = useState<ZoneData>(ZONES[0]);
 
-  useEffect(() => {
-    const fetchWeather = async (lat: number, lon: number, locName: string) => {
-      const apiKey = 'c88ea29af43110c4475edc723102b950';
-      try {
-        const res = await fetch(
-          `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=th&appid=${apiKey}`
-        );
-        const data = await res.json();
-        if (data.main) {
-          setWeather({
-            temp: data.main.temp.toFixed(1),
-            humidity: data.main.humidity,
-            description: data.weather[0].description,
-            locationName: `${data.name || locName}, ${data.sys?.country || 'TH'}`,
-          });
-        }
-      } catch (e) {
-        console.error('Failed to fetch OpenWeather:', e);
-        setWeather(prev => ({ ...prev, description: 'ไม่สามารถโหลดข้อมูลอากาศได้' }));
-      }
-    };
+  // คำนวณค่า VPD อัตโนมัติจากเซนเซอร์
+  const calculateVPD = (temp: number, humidity: number) => {
+    const svp = 0.61078 * Math.exp((17.27 * temp) / (temp + 237.3));
+    const avp = svp * (humidity / 100);
+    return (svp - avp).toFixed(2);
+  };
 
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        fetchWeather(13.8621, 100.5140, 'นนทบุรี (พิกัดฟาร์มหลัก)');
-        return;
-      }
+  const vpdValue = calculateVPD(selectedZone.rawTemp, selectedZone.rawHumidity);
 
-      try {
-        let location = await Location.getCurrentPositionAsync({});
-        fetchWeather(location.coords.latitude, location.coords.longitude, 'ตำแหน่งปัจจุบัน');
-      } catch (error) {
-        fetchWeather(13.8621, 100.5140, 'นนทบุรี (พิกัดฟาร์มหลัก)');
-      }
-    })();
-  }, []);
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.pageTitle}>แดชบอร์ดภาพรวมแปลงเกษตร</Text>
+      
+      {/* OpenWeather API Widget */}
+      <View style={styles.weatherCard}>
+        <View style={styles.weatherHeader}>
+          <View style={styles.weatherBadge}>
+            <Text style={styles.weatherBadgeText}>OpenWeather API</Text>
+          </View>
+          <Text style={styles.weatherLocation}>📍 นนทบุรี, ประเทศไทย</Text>
+        </View>
+        <Text style={styles.weatherTemp}>31°C • มีเมฆบางส่วน</Text>
+        <Text style={styles.weatherSub}>ความรู้สึกเหมือน 34°C • เหมาะแก่การเปิดพ่นหมอก</Text>
+        
+        <View style={styles.weatherStatsRow}>
+          <View style={styles.weatherStatItem}>
+            <Text style={styles.statLabel}>ความชื้นอากาศ</Text>
+            <Text style={styles.statVal}>65%</Text>
+          </View>
+          <View style={[styles.weatherStatItem, styles.statBorder]}>
+            <Text style={styles.statLabel}>ความเร็วลม</Text>
+            <Text style={styles.statVal}>4.2 m/s</Text>
+          </View>
+          <View style={styles.weatherStatItem}>
+            <Text style={styles.statLabel}>ดัชนี UV</Text>
+            <Text style={[styles.statVal, { color: '#FCD34D' }]}>ปานกลาง (5)</Text>
+          </View>
+        </View>
+      </View>
 
-  const toggleDevice = (id: string) => {
-    setDevices(prev =>
-      prev.map(dev => (dev.id === id ? { ...dev, isOn: !dev.isOn } : dev))
-    );
-  };
+      {/* เลือกโซน */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>รายงานสถานะเซนเซอร์โซน</Text>
+        <View style={styles.zoneSelectorRow}>
+          {ZONES.map((zone) => (
+            <TouchableOpacity
+              key={zone.id}
+              style={[styles.zoneBtn, selectedZone.id === zone.id && styles.zoneBtnActive]}
+              onPress={() => setSelectedZone(zone)}
+            >
+              <Text style={[styles.zoneBtnText, selectedZone.id === zone.id && styles.zoneBtnTextActive]}>
+                {zone.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
 
-  const filteredDevices = selectedRoom === 'ทั้งหมด' 
-    ? devices 
-    : devices.filter(d => d.room === selectedRoom);
+      {/* การแสดงผลข้อมูลเซนเซอร์, VPD, NPK, pH */}
+      <View style={styles.zoneCard}>
+        <View style={styles.zoneCardTop}>
+          <Text style={styles.zoneTypeBadge}>{selectedZone.typeLabel}</Text>
+          <Text style={styles.zoneNameText}>{selectedZone.name}</Text>
+          <Text style={styles.workspaceText}>พื้นที่: {selectedZone.workspace}</Text>
+        </View>
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Smart Agri-IoT</Text>
-          <Text style={styles.headerSubtitle}>{weather.locationName}</Text>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={() => navigation.navigate('RoomManagement')} style={styles.iconBtn}>
-            <Ionicons name="grid-outline" size={20} color="#059669" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('AddDevice')} style={[styles.iconBtn, { marginLeft: 8 }]}>
-            <Ionicons name="add" size={22} color="#059669" />
-          </TouchableOpacity>
-        </View>
-      </View>
+        <View style={styles.metricsGrid}>
+          <View style={styles.metricBox}>
+            <Ionicons name="thermometer-outline" size={18} color="#EF4444" />
+            <Text style={styles.metricLabel}>อุณหภูมิ</Text>
+            <Text style={styles.metricVal}>{selectedZone.rawTemp} °C</Text>
+          </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.weatherCard}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.weatherTitle}>สภาพอากาศจริง (OpenWeather Live)</Text>
-            <Text style={styles.weatherTemp}>
-              {weather.temp} °C | ความชื้น {weather.humidity}%
-            </Text>
-            <Text style={styles.weatherDesc}>{weather.description}</Text>
-          </View>
-          <Ionicons name="partly-sunny" size={38} color="#D97706" />
-        </View>
+          <View style={styles.metricBox}>
+            <Ionicons name="water-outline" size={18} color="#3B82F6" />
+            <Text style={styles.metricLabel}>ความชื้นอากาศ</Text>
+            <Text style={styles.metricVal}>{selectedZone.rawHumidity} %</Text>
+          </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll}>
-          {rooms.map(room => (
-            <TouchableOpacity 
-              key={room} 
-              style={[styles.roomTab, selectedRoom === room && styles.roomTabActive]}
-              onPress={() => setSelectedRoom(room)}
-            >
-              <Text style={[styles.roomTabText, selectedRoom === room && styles.roomTabTextActive]}>{room}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+          <View style={[styles.metricBox, styles.metricBoxVpd]}>
+            <Ionicons name="analytics-outline" size={18} color="#059669" />
+            <Text style={styles.metricLabelVpd}>ค่า VPD (คำนวณ)</Text>
+            <Text style={styles.metricValVpd}>{vpdValue} kPa</Text>
+          </View>
+        </View>
 
-        <Text style={styles.sectionTitle}>อุปกรณ์ควบคุมในฟาร์ม ({filteredDevices.length})</Text>
-        
-        {filteredDevices.map(device => (
-          <TouchableOpacity 
-            key={device.id} 
-            style={styles.deviceCard}
-            onPress={() => navigation.navigate('DeviceDetail', { deviceId: device.id, deviceName: device.name })}
-          >
-            <View style={styles.deviceInfo}>
-              <View style={[styles.iconBox, { backgroundColor: device.isOn ? '#D1FAE5' : '#F1F5F9' }]}>
-                <Ionicons name="power" size={20} color={device.isOn ? '#059669' : '#94A3B8'} />
-              </View>
-              <View>
-                <Text style={styles.deviceName}>{device.name}</Text>
-                <Text style={styles.deviceRoom}>{device.room}</Text>
-              </View>
-            </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.infoTitle}>🧪 ค่า NPK (ผู้ใช้กรอก)</Text>
+          <Text style={styles.infoText}>{selectedZone.npk}</Text>
+        </View>
 
-            <Switch
-              trackColor={{ false: '#CBD5E1', true: '#6EE7B7' }}
-              thumbColor={device.isOn ? '#059669' : '#F8FAFC'}
-              onValueChange={() => toggleDevice(device.id)}
-              value={device.isOn}
-            />
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  );
+        <View style={styles.infoBox}>
+          <Text style={styles.infoTitle}>⚗️ ค่า pH ดิน (ผู้ใช้กรอก)</Text>
+          <Text style={styles.infoText}>{selectedZone.ph}</Text>
+        </View>
+
+        <View style={styles.relayBox}>
+          <Ionicons name="flash-outline" size={16} color="#059669" />
+          <Text style={styles.relayText}>สถานะรีเลย์: {selectedZone.relayStatus}</Text>
+        </View>
+      </View>
+    </ScrollView>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 40 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#0F172A' },
-  headerSubtitle: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  headerActions: { flexDirection: 'row' },
-  iconBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#ECFDF5', justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { padding: 20 },
-  weatherCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 20, borderRadius: 20, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },
-  weatherTitle: { fontSize: 11, fontWeight: '600', color: '#64748B', textTransform: 'uppercase' },
-  weatherTemp: { fontSize: 18, fontWeight: 'bold', color: '#1E293B', marginTop: 4 },
-  weatherDesc: { fontSize: 12, color: '#059669', marginTop: 4, textTransform: 'capitalize', fontWeight: '500' },
-  tabScroll: { marginBottom: 16 },
-  roomTab: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#FFFFFF', borderRadius: 20, marginRight: 8, borderWidth: 1, borderColor: '#E2E8F0' },
-  roomTabActive: { backgroundColor: '#059669', borderColor: '#059669' },
-  roomTabText: { fontSize: 13, color: '#64748B', fontWeight: '500' },
-  roomTabTextActive: { color: '#FFFFFF', fontWeight: 'bold' },
-  sectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#64748B', marginBottom: 12, textTransform: 'uppercase' },
-  deviceCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 20, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },
-  deviceInfo: { flexDirection: 'row', alignItems: 'center' },
-  iconBox: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
-  deviceName: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
-  deviceRoom: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  contentContainer: { padding: 16, paddingBottom: 32 },
+  pageTitle: { fontSize: 20, fontWeight: '900', color: '#1E293B', marginBottom: 16 },
+  weatherCard: { backgroundColor: '#059669', borderRadius: 24, padding: 20, marginBottom: 20 },
+  weatherHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  weatherBadge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  weatherBadgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
+  weatherLocation: { color: '#D1FAE5', fontSize: 12, fontWeight: '600' },
+  weatherTemp: { color: '#FFF', fontSize: 28, fontWeight: '900', marginVertical: 4 },
+  weatherSub: { color: '#ECFDF5', fontSize: 12, marginBottom: 16 },
+  weatherStatsRow: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 16, padding: 12, justifyContent: 'space-between' },
+  weatherStatItem: { flex: 1, alignItems: 'center' },
+  statBorder: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  statLabel: { color: '#D1FAE5', fontSize: 10, fontWeight: 'bold' },
+  statVal: { color: '#FFF', fontSize: 13, fontWeight: '900', marginTop: 2 },
+  sectionHeader: { marginBottom: 12 },
+  sectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#1E293B', marginBottom: 8 },
+  zoneSelectorRow: { flexDirection: 'row', gap: 8 },
+  zoneBtn: { backgroundColor: '#E2E8F0', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16 },
+  zoneBtnActive: { backgroundColor: '#059669' },
+  zoneBtnText: { fontSize: 12, fontWeight: 'bold', color: '#475569' },
+  zoneBtnTextActive: { color: '#FFF' },
+  zoneCard: { backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#F1F5F9' },
+  zoneCardTop: { marginBottom: 16 },
+  zoneTypeBadge: { alignSelf: 'flex-start', backgroundColor: '#ECFDF5', color: '#047857', fontSize: 10, fontWeight: 'bold', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, overflow: 'hidden', marginBottom: 6 },
+  zoneNameText: { fontSize: 18, fontWeight: '900', color: '#1E293B' },
+  workspaceText: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  metricsGrid: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  metricBox: { flex: 1, backgroundColor: '#F8FAFC', padding: 12, borderRadius: 16, borderWidth: 1, borderColor: '#F1F5F9' },
+  metricBoxVpd: { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
+  metricLabel: { fontSize: 10, color: '#64748B', fontWeight: '600', marginTop: 4 },
+  metricVal: { fontSize: 14, fontWeight: '900', color: '#1E293B', marginTop: 2 },
+  metricLabelVpd: { fontSize: 10, color: '#047857', fontWeight: 'bold', marginTop: 4 },
+  metricValVpd: { fontSize: 14, fontWeight: '900', color: '#065F46', marginTop: 2 },
+  infoBox: { backgroundColor: '#F8FAFC', padding: 12, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#F1F5F9' },
+  infoTitle: { fontSize: 11, fontWeight: 'bold', color: '#475569', marginBottom: 2 },
+  infoText: { fontSize: 12, fontWeight: 'bold', color: '#1E293B' },
+  relayBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ECFDF5', padding: 12, borderRadius: 16, marginTop: 4 },
+  relayText: { fontSize: 12, fontWeight: 'bold', color: '#065F46' },
 });

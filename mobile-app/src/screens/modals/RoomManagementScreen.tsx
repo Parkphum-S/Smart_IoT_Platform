@@ -1,54 +1,116 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function RoomManagementScreen({ navigation }: any) {
-  const [rooms] = useState([
-    { id: 'r1', name: 'แปลงเกษตรโซน A', devices: 2 },
-    { id: 'r2', name: 'โรงเรือนเพาะชำ', devices: 1 },
-    { id: 'r3', name: 'แปลงเกษตรโซน B', devices: 2 },
-  ]);
+interface RoomItem {
+  id: number;
+  name: string;
+  zoneType: string;
+  workspace: string;
+  npk: string;
+  ph: string;
+}
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={20} color="#0F172A" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>จัดการโซนและห้อง</Text>
-      </View>
+export default function RoomManagementScreen() {
+  const [rooms, setRooms] = useState<RoomItem[]>([
+    { id: 1, name: 'แปลงเกษตรโซน A', zoneType: 'โซนพืชสวน', workspace: 'ฟาร์มตัวอย่าง', npk: 'N: 40, P: 25, K: 60', ph: '6.5' },
+    { id: 2, name: 'โรงเรือนเพาะชำ', zoneType: 'โซนไม้ดอก', workspace: 'ฟาร์มตัวอย่าง', npk: 'N: 35, P: 30, K: 50', ph: '6.8' },
+  ]);
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {rooms.map(room => (
-          <View key={room.id} style={styles.roomCard}>
-            <View>
-              <Text style={styles.roomName}>{room.name}</Text>
-              <Text style={styles.roomDevices}>อุปกรณ์ในโซนนี้: {room.devices} ตัว</Text>
-            </View>
-            <TouchableOpacity>
-              <Ionicons name="trash-outline" size={18} color="#DC2626" />
-            </TouchableOpacity>
-          </View>
-        ))}
+  const [name, setName] = useState('');
+  const [npk, setNpk] = useState('');
+  const [ph, setPh] = useState('');
 
-        <TouchableOpacity style={styles.addButton}>
-          <Ionicons name="add" size={18} color="#059669" style={{ marginRight: 8 }} />
-          <Text style={styles.addButtonText}>เพิ่มโซนหรือห้องใหม่</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
-  );
+  const handleAddRoom = () => {
+    if (!name.trim()) {
+      Alert.alert('แจ้งเตือน', 'กรุณากรอกชื่อโซน');
+      return;
+    }
+    const newRoom: RoomItem = {
+      id: Date.now(),
+      name: name.trim(),
+      zoneType: 'โซนพืชสวน',
+      workspace: 'ฟาร์มตัวอย่าง',
+      npk: npk.trim() || '-',
+      ph: ph.trim() || '-',
+    };
+    setRooms([newRoom, ...rooms]);
+    setName('');
+    setNpk('');
+    setPh('');
+    Alert.alert('สำเร็จ', 'เพิ่มโซนใหม่เรียบร้อยแล้ว');
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.pageTitle}>จัดการโซนและบันทึกค่า NPK/pH</Text>
+
+      {/* ฟอร์มเพิ่มโซน */}
+      <View style={styles.formCard}>
+        <Text style={styles.formHeader}>เพิ่มโซนใหม่ / บันทึกข้อมูลดิน</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="ชื่อโซน (เช่น แปลงผักโซน B)"
+          placeholderTextColor="#94A3B8"
+          value={name}
+          onChangeText={setName}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="ค่า NPK (เช่น N: 40, P: 25, K: 60)"
+          placeholderTextColor="#94A3B8"
+          value={npk}
+          onChangeText={setNpk}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="ค่า pH ดิน (เช่น 6.5)"
+          placeholderTextColor="#94A3B8"
+          value={ph}
+          onChangeText={setPh}
+          keyboardType="numeric"
+        />
+        <TouchableOpacity style={styles.submitBtn} onPress={handleAddRoom}>
+          <Ionicons name="add" size={18} color="#FFF" />
+          <Text style={styles.submitBtnText}>บันทึกโซนใหม่</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* รายการโซน */}
+      <Text style={styles.listTitle}>รายชื่อโซนทั้งหมดในระบบ</Text>
+      {rooms.map((room) => (
+        <View key={room.id} style={styles.roomCard}>
+          <View style={styles.roomLeft}>
+            <View style={styles.roomIconBox}>
+              <Ionicons name="grid-outline" size={20} color="#059669" />
+            </View>
+            <View>
+              <Text style={styles.roomName}>{room.name}</Text>
+              <Text style={styles.roomSub}>{room.zoneType} • {room.workspace}</Text>
+              <Text style={styles.roomData}>🧪 NPK: {room.npk}</Text>
+              <Text style={styles.roomData}>⚗️ pH: {room.ph}</Text>
+            </View>
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  backButton: { marginRight: 16 },
-  headerTitle: { fontSize: 16, fontWeight: 'bold', color: '#0F172A' },
-  content: { padding: 20 },
-  roomCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 18, borderRadius: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
-  roomName: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
-  roomDevices: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  addButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', backgroundColor: '#ECFDF5', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#D1FAE5', marginTop: 10 },
-  addButtonText: { color: '#059669', fontWeight: 'bold', fontSize: 14 },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  contentContainer: { padding: 16, paddingBottom: 32 },
+  pageTitle: { fontSize: 20, fontWeight: '900', color: '#1E293B', marginBottom: 16 },
+  formCard: { backgroundColor: '#FFF', borderRadius: 24, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#F1F5F9' },
+  formHeader: { fontSize: 14, fontWeight: 'bold', color: '#1E293B', marginBottom: 12 },
+  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, fontSize: 12, fontWeight: '600', color: '#1E293B', marginBottom: 10 },
+  submitBtn: { backgroundColor: '#059669', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 16, gap: 6, marginTop: 4 },
+  submitBtnText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
+  listTitle: { fontSize: 14, fontWeight: 'bold', color: '#1E293B', marginBottom: 10 },
+  roomCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: '#F1F5F9' },
+  roomLeft: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  roomIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center' },
+  roomName: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
+  roomSub: { fontSize: 11, color: '#059669', fontWeight: '600', marginVertical: 2 },
+  roomData: { fontSize: 11, color: '#64748B', marginTop: 1 },
 });
