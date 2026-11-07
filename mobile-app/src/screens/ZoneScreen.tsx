@@ -7,20 +7,23 @@ interface ZoneItem {
   name: string;
   crop: string;
   area: string;
-  deviceCount: number;
+  npk: string;
+  ph: string;
   status: string;
 }
 
 export default function ZoneScreen() {
   const [zones, setZones] = useState<ZoneItem[]>([
-    { id: '1', name: 'แปลงเกษตรโซน A', crop: 'เมล่อนญี่ปุ่น', area: '200 ตร.ม.', deviceCount: 4, status: 'ปกติ' },
-    { id: '2', name: 'โรงเรือนเพาะชำ', crop: 'ผักสลัดไฮโดรโปนิกส์', area: '120 ตร.ม.', deviceCount: 3, status: 'ปกติ' },
+    { id: '1', name: 'แปลงเกษตรโซน A', crop: 'เมล่อนญี่ปุ่น', area: '200 ตร.ม.', npk: 'N:40, P:25, K:60', ph: '6.5', status: 'ปกติ' },
+    { id: '2', name: 'โรงเรือนเพาะชำ', crop: 'ผักสลัดไฮโดรโปนิกส์', area: '120 ตร.ม.', npk: 'N:50, P:30, K:70', ph: '6.8', status: 'ปกติ' },
   ]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [name, setName] = useState('');
   const [crop, setCrop] = useState('');
   const [area, setArea] = useState('');
+  const [npk, setNpk] = useState('N:40, P:25, K:60');
+  const [ph, setPh] = useState('6.5');
 
   const addZone = () => {
     if (!name.trim()) return;
@@ -29,7 +32,8 @@ export default function ZoneScreen() {
       name,
       crop: crop || 'พืชผักทั่วไป',
       area: area || '100 ตร.ม.',
-      deviceCount: 0,
+      npk,
+      ph,
       status: 'พร้อมใช้งาน',
     };
     setZones([...zones, newZone]);
@@ -49,7 +53,7 @@ export default function ZoneScreen() {
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.pageTitle}>จัดการโซนแปลงเกษตร</Text>
-            <Text style={styles.pageSub}>เพิ่ม แก้ไข และตรวจสอบพื้นที่เพาะปลูก</Text>
+            <Text style={styles.pageSub}>เพิ่ม แก้ไข และกำหนดค่า NPK & pH ประจำโซน</Text>
           </View>
           <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
             <Ionicons name="add" size={18} color="#FFF" />
@@ -65,8 +69,8 @@ export default function ZoneScreen() {
               </View>
               <View style={{ flex: 1, marginHorizontal: 12 }}>
                 <Text style={styles.zoneName}>{zone.name}</Text>
-                <Text style={styles.zoneMeta}>🌱 พืชที่ปลูก: {zone.crop} • 📐 {zone.area}</Text>
-                <Text style={styles.zoneDevices}>🔌 อุปกรณ์เชื่อมต่อ: {zone.deviceCount} ตัว • สถานะ: {zone.status}</Text>
+                <Text style={styles.zoneMeta}>🌱 พืช: {zone.crop} • 📐 {zone.area}</Text>
+                <Text style={styles.zoneSoil}>🧪 NPK: {zone.npk} | pH: {zone.ph}</Text>
               </View>
               <TouchableOpacity onPress={() => deleteZone(zone.id)} style={styles.deleteBtn}>
                 <Ionicons name="trash-outline" size={18} color="#DC2626" />
@@ -79,13 +83,23 @@ export default function ZoneScreen() {
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>🗺️ เพิ่มโซนแปลงเกษตรใหม่</Text>
+            <Text style={styles.modalTitle}>🗺️ เพิ่มโซนแปลงเกษตรใหม่ (พร้อมค่าดิน)</Text>
+            
             <Text style={styles.label}>ชื่อโซน / โรงเรือน</Text>
             <TextInput style={styles.input} placeholder="เช่น แปลงเกษตรโซน B" placeholderTextColor="#94A3B8" value={name} onChangeText={setName} />
+
             <Text style={styles.label}>ชนิดพืชที่ปลูก</Text>
             <TextInput style={styles.input} placeholder="เช่น มะเขือเทศราชินี" placeholderTextColor="#94A3B8" value={crop} onChangeText={setCrop} />
+
             <Text style={styles.label}>ขนาดพื้นที่</Text>
             <TextInput style={styles.input} placeholder="เช่น 150 ตร.ม." placeholderTextColor="#94A3B8" value={area} onChangeText={setArea} />
+
+            <Text style={styles.label}>ค่า NPK เบื้องต้น</Text>
+            <TextInput style={styles.input} placeholder="เช่น N:40, P:25, K:60" placeholderTextColor="#94A3B8" value={npk} onChangeText={setNpk} />
+
+            <Text style={styles.label}>ค่า pH ดิน</Text>
+            <TextInput style={styles.input} placeholder="เช่น 6.5" placeholderTextColor="#94A3B8" value={ph} onChangeText={setPh} keyboardType="numeric" />
+
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelText}>ยกเลิก</Text>
@@ -114,14 +128,14 @@ const styles = StyleSheet.create({
   iconBox: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center' },
   zoneName: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
   zoneMeta: { fontSize: 11, color: '#475569', marginTop: 2 },
-  zoneDevices: { fontSize: 11, color: '#059669', fontWeight: '600', marginTop: 2 },
+  zoneSoil: { fontSize: 11, color: '#059669', fontWeight: 'bold', marginTop: 2 },
   deleteBtn: { padding: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', width: '100%', borderRadius: 20, padding: 20 },
-  modalTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 14 },
-  label: { fontSize: 11, fontWeight: 'bold', color: '#475569', marginBottom: 4, marginTop: 8 },
-  input: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 10, fontSize: 13, color: '#1E293B' },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 18 },
+  modalTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 14 },
+  label: { fontSize: 11, fontWeight: 'bold', color: '#475569', marginBottom: 4, marginTop: 6 },
+  input: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 10, fontSize: 12, color: '#1E293B' },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 16 },
   cancelBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: '#F1F5F9' },
   cancelText: { color: '#64748B', fontWeight: 'bold', fontSize: 12 },
   submitBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: '#059669' },
