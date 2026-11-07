@@ -13,13 +13,14 @@ interface DeviceItem {
 
 export default function DeviceScreen() {
   const [devices, setDevices] = useState<DeviceItem[]>([
-    { id: '1', name: 'ปั๊มน้ำหลัก (Main Pump)', zone: 'แปลงเกษตรโซน A', type: 'Relay 1', isOn: true, statusText: 'ทำงานอัตโนมัติ / เปิดอยู่' },
-    { id: '2', name: 'ระบบพ่นหมอกความชื้น', zone: 'โรงเรือนเพาะชำ', type: 'Relay 2', isOn: false, statusText: 'ปิดใช้งาน' },
+    { id: '1', name: 'ปั๊มน้ำหลัก (Main Pump)', zone: 'แปลงเกษตรโซน A', type: 'Relay', isOn: true, statusText: 'ทำงานอัตโนมัติ / เปิดอยู่' },
+    { id: '2', name: 'ระบบพ่นหมอกความชื้น', zone: 'โรงเรือนเพาะชำ', type: 'Relay', isOn: false, statusText: 'ปิดใช้งาน' },
   ]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newZone, setNewZone] = useState('');
+  const [selectedZone, setSelectedZone] = useState('แปลงเกษตรโซน A');
+  const [deviceType, setDeviceType] = useState('Relay ปั๊มน้ำ');
 
   const toggleDevice = (id: string) => {
     setDevices(devices.map(dev => {
@@ -36,14 +37,13 @@ export default function DeviceScreen() {
     const newItem: DeviceItem = {
       id: Date.now().toString(),
       name: newName,
-      zone: newZone || 'แปลงเกษตรทั่วไป',
-      type: 'Relay',
+      zone: selectedZone,
+      type: deviceType,
       isOn: false,
       statusText: 'ปิดใช้งาน',
     };
     setDevices([...devices, newItem]);
     setNewName('');
-    setNewZone('');
     setModalVisible(false);
   };
 
@@ -56,11 +56,11 @@ export default function DeviceScreen() {
       <ScrollView contentContainerStyle={styles.contentContainer}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.pageTitle}>ควบคุม & จัดการอุปกรณ์</Text>
-            <Text style={styles.pageSub}>เพิ่มและควบคุมรีเลย์ฮาร์ดแวร์ในฟาร์ม</Text>
+            <Text style={styles.pageTitle}>จัดการอุปกรณ์ฮาร์ดแวร์</Text>
+            <Text style={styles.pageSub}>ควบคุมรีเลย์และเชื่อมต่อเซนเซอร์รายโซน</Text>
           </View>
           <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
-            <Ionicons name="add" size={20} color="#FFF" />
+            <Ionicons name="add" size={18} color="#FFF" />
             <Text style={styles.addButtonText}>เพิ่มอุปกรณ์</Text>
           </TouchableOpacity>
         </View>
@@ -69,11 +69,11 @@ export default function DeviceScreen() {
           <View key={device.id} style={styles.deviceCard}>
             <View style={styles.deviceInfo}>
               <View style={[styles.iconBox, { backgroundColor: device.isOn ? '#ECFDF5' : '#F1F5F9' }]}>
-                <Ionicons name={device.isOn ? "flash" : "flash-off"} size={22} color={device.isOn ? "#059669" : "#94A3B8"} />
+                <Ionicons name={device.isOn ? "flash" : "flash-off"} size={20} color={device.isOn ? "#059669" : "#94A3B8"} />
               </View>
               <View style={{ flex: 1, marginHorizontal: 10 }}>
                 <Text style={styles.deviceName}>{device.name}</Text>
-                <Text style={styles.deviceZone}>📍 {device.zone}</Text>
+                <Text style={styles.deviceZone}>📍 {device.zone} • {device.type}</Text>
                 <Text style={[styles.deviceStatus, { color: device.isOn ? '#059669' : '#64748B' }]}>{device.statusText}</Text>
               </View>
               <Switch
@@ -90,31 +90,39 @@ export default function DeviceScreen() {
         ))}
       </ScrollView>
 
-      {/* Modal เพิ่มอุปกรณ์ */}
+      {/* Modal เพิ่มอุปกรณ์แบบฟอร์มเต็มเหมือน Web App */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>➕ เพิ่มอุปกรณ์รีเลย์ใหม่</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="ชื่ออุปกรณ์ (เช่น ปั๊มน้ำโซน B)"
-              placeholderTextColor="#94A3B8"
-              value={newName}
-              onChangeText={setNewName}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="โซน / โรงเรือน (เช่น โรงเรือนเพาะชำ)"
-              placeholderTextColor="#94A3B8"
-              value={newZone}
-              onChangeText={setNewZone}
-            />
+            <Text style={styles.modalTitle}>➕ เพิ่มอุปกรณ์รีเลย์ / เซนเซอร์ใหม่</Text>
+            
+            <Text style={styles.label}>ชื่ออุปกรณ์</Text>
+            <TextInput style={styles.input} placeholder="เช่น ปั๊มน้ำแปลงผัก Zone B" placeholderTextColor="#94A3B8" value={newName} onChangeText={setNewName} />
+
+            <Text style={styles.label}>เลือกโซน / พื้นที่</Text>
+            <View style={styles.selectorRow}>
+              {['แปลงเกษตรโซน A', 'โรงเรือนเพาะชำ'].map(z => (
+                <TouchableOpacity key={z} style={[styles.selectBtn, selectedZone === z && styles.selectBtnActive]} onPress={() => setSelectedZone(z)}>
+                  <Text style={[styles.selectTxt, selectedZone === z && styles.selectTxtActive]}>{z}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.label}>ประเภทฮาร์ดแวร์</Text>
+            <View style={styles.selectorRow}>
+              {['Relay ปั๊มน้ำ', 'ระบบพ่นหมอก', 'เซนเซอร์วัดดิน'].map(t => (
+                <TouchableOpacity key={t} style={[styles.selectBtn, deviceType === t && styles.selectBtnActive]} onPress={() => setDeviceType(t)}>
+                  <Text style={[styles.selectTxt, deviceType === t && styles.selectTxtActive]}>{t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelText}>ยกเลิก</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.submitBtn} onPress={addDevice}>
-                <Text style={styles.submitText}>บันทึก</Text>
+                <Text style={styles.submitText}>บันทึกอุปกรณ์</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -138,12 +146,18 @@ const styles = StyleSheet.create({
   deviceName: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
   deviceZone: { fontSize: 11, color: '#475569', marginVertical: 2 },
   deviceStatus: { fontSize: 10, fontWeight: 'bold' },
-  deleteBtn: { marginLeft: 12, padding: 6 },
+  deleteBtn: { marginLeft: 10, padding: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', width: '100%', borderRadius: 20, padding: 20 },
-  modalTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 16 },
-  input: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 12, fontSize: 13, marginBottom: 12, color: '#1E293B' },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 },
+  modalTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 14 },
+  label: { fontSize: 12, fontWeight: 'bold', color: '#475569', marginBottom: 6, marginTop: 8 },
+  input: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 12, fontSize: 13, color: '#1E293B' },
+  selectorRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  selectBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' },
+  selectBtnActive: { backgroundColor: '#ECFDF5', borderColor: '#059669' },
+  selectTxt: { fontSize: 11, color: '#64748B', fontWeight: '600' },
+  selectTxtActive: { color: '#059669', fontWeight: 'bold' },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 20 },
   cancelBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: '#F1F5F9' },
   cancelText: { color: '#64748B', fontWeight: 'bold', fontSize: 13 },
   submitBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: '#059669' },
