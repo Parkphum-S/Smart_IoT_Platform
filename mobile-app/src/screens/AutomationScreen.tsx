@@ -5,39 +5,47 @@ import { Ionicons } from '@expo/vector-icons';
 interface RuleItem {
   id: string;
   title: string;
-  condition: string;
-  action: string;
+  sensorType: string;
+  operator: string;
+  threshold: string;
+  actionDevice: string;
+  zone: string;
   isActive: boolean;
 }
 
 export default function AutomationScreen() {
   const [rules, setRules] = useState<RuleItem[]>([
-    { id: '1', title: 'ควบคุมความชื้นโรงเรือน', condition: 'ความชื้นดิน < 40%', action: 'เปิดรีเลย์ปั๊มน้ำ (Zone A)', isActive: true },
-    { id: '2', title: 'ลดอุณหภูมิแปลงเกษตร', condition: 'อุณหภูมิ > 33°C', action: 'เปิดระบบพ่นหมอก', isActive: false },
+    { id: '1', title: 'ควบคุมความชื้นโรงเรือน', sensorType: 'ความชื้นดิน (%)', operator: 'น้อยกว่า (<)', threshold: '40', actionDevice: 'รีเลย์ปั๊มน้ำหลัก', zone: 'แปลงเกษตรโซน A', isActive: true },
+    { id: '2', title: 'ระบายความร้อนแปลง', sensorType: 'อุณหภูมิ (°C)', operator: 'มากกว่า (>)', threshold: '33', actionDevice: 'ระบบพ่นหมอกความชื้น', zone: 'โรงเรือนเพาะชำ', isActive: false },
   ]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [title, setTitle] = useState('');
-  const [condition, setCondition] = useState('');
-  const [action, setAction] = useState('');
+  const [sensorType, setSensorType] = useState('ความชื้นดิน (%)');
+  const [operator, setOperator] = useState('น้อยกว่า (<)');
+  const [threshold, setThreshold] = useState('');
+  const [actionDevice, setActionDevice] = useState('รีเลย์ปั๊มน้ำหลัก');
+  const [zone, setZone] = useState('แปลงเกษตรโซน A');
 
   const toggleRule = (id: string) => {
     setRules(rules.map(r => r.id === id ? { ...r, isActive: !r.isActive } : r));
   };
 
   const addRule = () => {
-    if (!title.trim()) return;
+    if (!title.trim() || !threshold.trim()) return;
     const newRule: RuleItem = {
       id: Date.now().toString(),
       title,
-      condition: condition || 'กำหนดเอง',
-      action: action || 'สั่งการรีเลย์',
+      sensorType,
+      operator,
+      threshold,
+      actionDevice,
+      zone,
       isActive: true,
     };
     setRules([...rules, newRule]);
     setTitle('');
-    setCondition('');
-    setAction('');
+    setThreshold('');
     setModalVisible(false);
   };
 
@@ -50,12 +58,12 @@ export default function AutomationScreen() {
       <ScrollView contentContainerStyle={styles.contentContainer}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.pageTitle}>ระบบอัตโนมัติ (Automation)</Text>
-            <Text style={styles.pageSub}>ตั้งค่าเงื่อนไขควบคุมฮาร์ดแวร์อัจฉริยะ</Text>
+            <Text style={styles.pageTitle}>ระบบอัตโนมัติ (Automation Rules)</Text>
+            <Text style={styles.pageSub}>ตั้งค่าเงื่อนไขควบคุมฮาร์ดแวร์อัจฉริยะตามหน้าเว็บ</Text>
           </View>
           <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
-            <Ionicons name="add" size={20} color="#FFF" />
-            <Text style={styles.addButtonText}>เพิ่มกฎ</Text>
+            <Ionicons name="add" size={18} color="#FFF" />
+            <Text style={styles.addButtonText}>เพิ่มกฎเงื่อนไข</Text>
           </TouchableOpacity>
         </View>
 
@@ -67,8 +75,9 @@ export default function AutomationScreen() {
               </View>
               <View style={{ flex: 1, marginHorizontal: 12 }}>
                 <Text style={styles.ruleTitle}>{rule.title}</Text>
-                <Text style={styles.ruleDesc}>เงื่อนไข: {rule.condition}</Text>
-                <Text style={styles.ruleAction}>การทำงาน: {rule.action}</Text>
+                <Text style={styles.ruleDesc}>📍 โซน: {rule.zone}</Text>
+                <Text style={styles.ruleCondition}>เงื่อนไข: {rule.sensorType} {rule.operator} {rule.threshold}</Text>
+                <Text style={styles.ruleAction}>⚡ สั่งการ: {rule.actionDevice}</Text>
               </View>
               <Switch
                 value={rule.isActive}
@@ -84,20 +93,58 @@ export default function AutomationScreen() {
         ))}
       </ScrollView>
 
-      {/* Modal เพิ่มกฎ */}
+      {/* Modal ฟอร์มเพิ่มกฎแบบสมบูรณ์เหมือน Web App */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>⚡ สร้างเงื่อนไขอัตโนมัติใหม่</Text>
-            <TextInput style={styles.input} placeholder="ชื่อกฎ (เช่น รดน้ำอัตโนมัติยามเช้า)" placeholderTextColor="#94A3B8" value={title} onChangeText={setTitle} />
-            <TextInput style={styles.input} placeholder="เงื่อนไข (เช่น ความชื้น < 50%)" placeholderTextColor="#94A3B8" value={condition} onChangeText={setCondition} />
-            <TextInput style={styles.input} placeholder="การทำงาน (เช่น เปิดปั๊มน้ำ Zone A)" placeholderTextColor="#94A3B8" value={action} onChangeText={setAction} />
+            <Text style={styles.modalTitle}>⚡ สร้างเงื่อนไขอัตโนมัติ (Rule Engine)</Text>
+            
+            <Text style={styles.label}>ชื่อเงื่อนไข / กฎการทำงาน</Text>
+            <TextInput style={styles.input} placeholder="เช่น รดน้ำอัตโนมัติยามเช้า" placeholderTextColor="#94A3B8" value={title} onChangeText={setTitle} />
+
+            <Text style={styles.label}>เลือกโซนพื้นที่</Text>
+            <View style={styles.selectorRow}>
+              {['แปลงเกษตรโซน A', 'โรงเรือนเพาะชำ'].map(z => (
+                <TouchableOpacity key={z} style={[styles.selectBtn, zone === z && styles.selectBtnActive]} onPress={() => setZone(z)}>
+                  <Text style={[styles.selectTxt, zone === z && styles.selectTxtActive]}>{z}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.label}>ประเภทเซนเซอร์ตัวจับ</Text>
+            <View style={styles.selectorRow}>
+              {['ความชื้นดิน (%)', 'อุณหภูมิ (°C)', 'ค่า pH', 'ค่า VPD'].map(s => (
+                <TouchableOpacity key={s} style={[styles.selectBtn, sensorType === s && styles.selectBtnActive]} onPress={() => setSensorType(s)}>
+                  <Text style={[styles.selectTxt, sensorType === s && styles.selectTxtActive]}>{s}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.label}>เงื่อนไขเปรียบเทียบ & ค่า Threshold</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+              {['น้อยกว่า (<)', 'มากกว่า (>)'].map(op => (
+                <TouchableOpacity key={op} style={[styles.selectBtn, operator === op && styles.selectBtnActive]} onPress={() => setOperator(op)}>
+                  <Text style={[styles.selectTxt, operator === op && styles.selectTxtActive]}>{op}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput style={styles.input} placeholder="ระบุตัวเลขค่าเกณฑ์ (เช่น 40 หรือ 33)" placeholderTextColor="#94A3B8" keyboardType="numeric" value={threshold} onChangeText={setThreshold} />
+
+            <Text style={styles.label}>อุปกรณ์รีเลย์ปลายทางที่จะสั่งการ</Text>
+            <View style={styles.selectorRow}>
+              {['รีเลย์ปั๊มน้ำหลัก', 'ระบบพ่นหมอกความชื้น', 'ไฟ LED ปลูกพืช'].map(d => (
+                <TouchableOpacity key={d} style={[styles.selectBtn, actionDevice === d && styles.selectBtnActive]} onPress={() => setActionDevice(d)}>
+                  <Text style={[styles.selectTxt, actionDevice === d && styles.selectTxtActive]}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelText}>ยกเลิก</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.submitBtn} onPress={addRule}>
-                <Text style={styles.submitText}>บันทึกกฎ</Text>
+                <Text style={styles.submitText}>บันทึกเงื่อนไข</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -119,16 +166,23 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   ruleTitle: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
-  ruleDesc: { fontSize: 11, color: '#475569', marginTop: 2 },
-  ruleAction: { fontSize: 11, fontWeight: '600', color: '#059669', marginTop: 2 },
-  deleteBtn: { marginLeft: 12, padding: 6 },
+  ruleDesc: { fontSize: 11, color: '#64748B', marginTop: 2 },
+  ruleCondition: { fontSize: 11, color: '#334155', fontWeight: '600', marginTop: 2 },
+  ruleAction: { fontSize: 11, fontWeight: 'bold', color: '#059669', marginTop: 2 },
+  deleteBtn: { marginLeft: 10, padding: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', width: '100%', borderRadius: 20, padding: 20 },
-  modalTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 16 },
-  input: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 12, fontSize: 13, marginBottom: 12, color: '#1E293B' },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 },
+  modalTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 14 },
+  label: { fontSize: 11, fontWeight: 'bold', color: '#475569', marginBottom: 6, marginTop: 8 },
+  input: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 10, fontSize: 12, color: '#1E293B' },
+  selectorRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  selectBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' },
+  selectBtnActive: { backgroundColor: '#ECFDF5', borderColor: '#059669' },
+  selectTxt: { fontSize: 11, color: '#64748B', fontWeight: '600' },
+  selectTxtActive: { color: '#059669', fontWeight: 'bold' },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 18 },
   cancelBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: '#F1F5F9' },
-  cancelText: { color: '#64748B', fontWeight: 'bold', fontSize: 13 },
+  cancelText: { color: '#64748B', fontWeight: 'bold', fontSize: 12 },
   submitBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: '#059669' },
-  submitText: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
+  submitText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
 });

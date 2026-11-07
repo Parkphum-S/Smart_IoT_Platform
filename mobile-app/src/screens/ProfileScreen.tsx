@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function ProfileScreen({ navigation }: any) {
+interface ProfileScreenProps {
+  onNavigate?: (tab: 'workspaces' | 'members' | 'audit') => void;
+}
+
+export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
   const [userName, setUserName] = useState('Parkphum (Owner)');
   const [userEmail, setUserEmail] = useState('parkphum@smartiot.local');
   const [modalVisible, setModalVisible] = useState(false);
@@ -18,7 +22,7 @@ export default function ProfileScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>โปรไฟล์และการตั้งค่า</Text>
+        <Text style={styles.headerTitle}>โปรไฟล์และการจัดการระบบ</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -36,16 +40,22 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
 
         <View style={styles.menuGroup}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => alert('เปิดใช้งานแจ้งเตือนผ่าน Mobile Push เรียบร้อย')}>
-            <Ionicons name="notifications-outline" size={20} color="#059669" style={styles.menuIcon} />
-            <Text style={styles.menuText}>การตั้งค่าการแจ้งเตือน Push</Text>
-            <Ionicons name="chevron-forward" size={16} color="#94A3B8"/>
+          <TouchableOpacity style={styles.menuItem} onPress={() => onNavigate && onNavigate('workspaces')}>
+            <Ionicons name="business-outline" size={20} color="#059669" style={styles.menuIcon} />
+            <Text style={styles.menuText}>จัดการ & สลับ Workspace / ฟาร์ม</Text>
+            <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={() => alert('ระบบความปลอดภัยสิทธิ์ RBAC เปิดใช้งานอยู่')}>
-            <Ionicons name="shield-outline" size={20} color="#059669" style={styles.menuIcon} />
-            <Text style={styles.menuText}>ความปลอดภัยและสิทธิ์การใช้งาน (RBAC)</Text>
-            <Ionicons name="chevron-forward" size={16} color="#94A3B8"/>
+          <TouchableOpacity style={styles.menuItem} onPress={() => onNavigate && onNavigate('members')}>
+            <Ionicons name="people-outline" size={20} color="#059669" style={styles.menuIcon} />
+            <Text style={styles.menuText}>จัดการสมาชิก & สิทธิ์ (RBAC)</Text>
+            <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={() => onNavigate && onNavigate('audit')}>
+            <Ionicons name="shield-checkmark-outline" size={20} color="#059669" style={styles.menuIcon} />
+            <Text style={styles.menuText}>ประวัติความปลอดภัย (Audit Logs)</Text>
+            <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
           </TouchableOpacity>
         </View>
 
@@ -55,7 +65,6 @@ export default function ProfileScreen({ navigation }: any) {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Modal แก้ไขโปรไฟล์ */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
