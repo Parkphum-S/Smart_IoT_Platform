@@ -20,6 +20,7 @@ export default function AutomationScreen() {
   ]);
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [sensorType, setSensorType] = useState('ความชื้นดิน (%)');
   const [operator, setOperator] = useState('น้อยกว่า (<)');
@@ -31,21 +32,53 @@ export default function AutomationScreen() {
     setRules(rules.map(r => r.id === id ? { ...r, isActive: !r.isActive } : r));
   };
 
-  const addRule = () => {
-    if (!title.trim() || !threshold.trim()) return;
-    const newRule: RuleItem = {
-      id: Date.now().toString(),
-      title,
-      sensorType,
-      operator,
-      threshold,
-      actionDevice,
-      zone,
-      isActive: true,
-    };
-    setRules([...rules, newRule]);
+  const openAddModal = () => {
+    setEditingId(null);
     setTitle('');
+    setSensorType('ความชื้นดิน (%)');
+    setOperator('น้อยกว่า (<)');
     setThreshold('');
+    setActionDevice('รีเลย์ปั๊มน้ำหลัก');
+    setZone('แปลงเกษตรโซน A');
+    setModalVisible(true);
+  };
+
+  const openEditModal = (rule: RuleItem) => {
+    setEditingId(rule.id);
+    setTitle(rule.title);
+    setSensorType(rule.sensorType);
+    setOperator(rule.operator);
+    setThreshold(rule.threshold);
+    setActionDevice(rule.actionDevice);
+    setZone(rule.zone);
+    setModalVisible(true);
+  };
+
+  const saveRule = () => {
+    if (!title.trim() || !threshold.trim()) return;
+    if (editingId) {
+      setRules(rules.map(r => r.id === editingId ? {
+        ...r,
+        title,
+        sensorType,
+        operator,
+        threshold,
+        actionDevice,
+        zone,
+      } : r));
+    } else {
+      const newRule: RuleItem = {
+        id: Date.now().toString(),
+        title,
+        sensorType,
+        operator,
+        threshold,
+        actionDevice,
+        zone,
+        isActive: true,
+      };
+      setRules([...rules, newRule]);
+    }
     setModalVisible(false);
   };
 
@@ -61,7 +94,7 @@ export default function AutomationScreen() {
             <Text style={styles.pageTitle}>ระบบอัตโนมัติ (Automation Rules)</Text>
             <Text style={styles.pageSub}>ตั้งค่าเงื่อนไขควบคุมฮาร์ดแวร์อัจฉริยะตามหน้าเว็บ</Text>
           </View>
-          <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
+          <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
             <Ionicons name="add" size={18} color="#FFF" />
             <Text style={styles.addButtonText}>เพิ่มกฎเงื่อนไข</Text>
           </TouchableOpacity>
@@ -85,6 +118,9 @@ export default function AutomationScreen() {
                 trackColor={{ false: '#CBD5E1', true: '#A7F3D0' }}
                 thumbColor={rule.isActive ? '#059669' : '#F8FAFC'}
               />
+              <TouchableOpacity onPress={() => openEditModal(rule)} style={styles.editBtn}>
+                <Ionicons name="create-outline" size={18} color="#059669" />
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => deleteRule(rule.id)} style={styles.deleteBtn}>
                 <Ionicons name="trash-outline" size={18} color="#DC2626" />
               </TouchableOpacity>
@@ -93,11 +129,10 @@ export default function AutomationScreen() {
         ))}
       </ScrollView>
 
-      {/* Modal ฟอร์มเพิ่มกฎแบบสมบูรณ์เหมือน Web App */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>⚡ สร้างเงื่อนไขอัตโนมัติ (Rule Engine)</Text>
+            <Text style={styles.modalTitle}>{editingId ? '✏️ แก้ไขเงื่อนไขอัตโนมัติ' : '⚡ สร้างเงื่อนไขอัตโนมัติ (Rule Engine)'}</Text>
             
             <Text style={styles.label}>ชื่อเงื่อนไข / กฎการทำงาน</Text>
             <TextInput style={styles.input} placeholder="เช่น รดน้ำอัตโนมัติยามเช้า" placeholderTextColor="#94A3B8" value={title} onChangeText={setTitle} />
@@ -143,8 +178,8 @@ export default function AutomationScreen() {
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelText}>ยกเลิก</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.submitBtn} onPress={addRule}>
-                <Text style={styles.submitText}>บันทึกเงื่อนไข</Text>
+              <TouchableOpacity style={styles.submitBtn} onPress={saveRule}>
+                <Text style={styles.submitText}>{editingId ? 'บันทึกการแก้ไข' : 'บันทึกเงื่อนไข'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -169,7 +204,8 @@ const styles = StyleSheet.create({
   ruleDesc: { fontSize: 11, color: '#64748B', marginTop: 2 },
   ruleCondition: { fontSize: 11, color: '#334155', fontWeight: '600', marginTop: 2 },
   ruleAction: { fontSize: 11, fontWeight: 'bold', color: '#059669', marginTop: 2 },
-  deleteBtn: { marginLeft: 10, padding: 6 },
+  editBtn: { marginLeft: 8, padding: 6 },
+  deleteBtn: { marginLeft: 4, padding: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', width: '100%', borderRadius: 20, padding: 20 },
   modalTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 14 },

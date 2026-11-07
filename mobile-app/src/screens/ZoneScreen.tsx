@@ -19,27 +19,56 @@ export default function ZoneScreen() {
   ]);
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [crop, setCrop] = useState('');
   const [area, setArea] = useState('');
   const [npk, setNpk] = useState('N:40, P:25, K:60');
   const [ph, setPh] = useState('6.5');
 
-  const addZone = () => {
-    if (!name.trim()) return;
-    const newZone: ZoneItem = {
-      id: Date.now().toString(),
-      name,
-      crop: crop || 'พืชผักทั่วไป',
-      area: area || '100 ตร.ม.',
-      npk,
-      ph,
-      status: 'พร้อมใช้งาน',
-    };
-    setZones([...zones, newZone]);
+  const openAddModal = () => {
+    setEditingId(null);
     setName('');
     setCrop('');
     setArea('');
+    setNpk('N:40, P:25, K:60');
+    setPh('6.5');
+    setModalVisible(true);
+  };
+
+  const openEditModal = (zone: ZoneItem) => {
+    setEditingId(zone.id);
+    setName(zone.name);
+    setCrop(zone.crop);
+    setArea(zone.area);
+    setNpk(zone.npk);
+    setPh(zone.ph);
+    setModalVisible(true);
+  };
+
+  const saveZone = () => {
+    if (!name.trim()) return;
+    if (editingId) {
+      setZones(zones.map(z => z.id === editingId ? {
+        ...z,
+        name,
+        crop: crop || 'พืชผักทั่วไป',
+        area: area || '100 ตร.ม.',
+        npk,
+        ph,
+      } : z));
+    } else {
+      const newZone: ZoneItem = {
+        id: Date.now().toString(),
+        name,
+        crop: crop || 'พืชผักทั่วไป',
+        area: area || '100 ตร.ม.',
+        npk,
+        ph,
+        status: 'พร้อมใช้งาน',
+      };
+      setZones([...zones, newZone]);
+    }
     setModalVisible(false);
   };
 
@@ -55,7 +84,7 @@ export default function ZoneScreen() {
             <Text style={styles.pageTitle}>จัดการโซนแปลงเกษตร</Text>
             <Text style={styles.pageSub}>เพิ่ม แก้ไข และกำหนดค่า NPK & pH ประจำโซน</Text>
           </View>
-          <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
+          <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
             <Ionicons name="add" size={18} color="#FFF" />
             <Text style={styles.addButtonText}>เพิ่มโซน</Text>
           </TouchableOpacity>
@@ -72,6 +101,9 @@ export default function ZoneScreen() {
                 <Text style={styles.zoneMeta}>🌱 พืช: {zone.crop} • 📐 {zone.area}</Text>
                 <Text style={styles.zoneSoil}>🧪 NPK: {zone.npk} | pH: {zone.ph}</Text>
               </View>
+              <TouchableOpacity onPress={() => openEditModal(zone)} style={styles.editBtn}>
+                <Ionicons name="create-outline" size={18} color="#059669" />
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => deleteZone(zone.id)} style={styles.deleteBtn}>
                 <Ionicons name="trash-outline" size={18} color="#DC2626" />
               </TouchableOpacity>
@@ -83,7 +115,7 @@ export default function ZoneScreen() {
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>🗺️ เพิ่มโซนแปลงเกษตรใหม่ (พร้อมค่าดิน)</Text>
+            <Text style={styles.modalTitle}>{editingId ? '✏️ แก้ไขข้อมูลโซนแปลงเกษตร' : '🗺️ เพิ่มโซนแปลงเกษตรใหม่'}</Text>
             
             <Text style={styles.label}>ชื่อโซน / โรงเรือน</Text>
             <TextInput style={styles.input} placeholder="เช่น แปลงเกษตรโซน B" placeholderTextColor="#94A3B8" value={name} onChangeText={setName} />
@@ -104,8 +136,8 @@ export default function ZoneScreen() {
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelText}>ยกเลิก</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.submitBtn} onPress={addZone}>
-                <Text style={styles.submitText}>บันทึกโซน</Text>
+              <TouchableOpacity style={styles.submitBtn} onPress={saveZone}>
+                <Text style={styles.submitText}>{editingId ? 'บันทึกการแก้ไข' : 'บันทึกโซน'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -129,6 +161,7 @@ const styles = StyleSheet.create({
   zoneName: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
   zoneMeta: { fontSize: 11, color: '#475569', marginTop: 2 },
   zoneSoil: { fontSize: 11, color: '#059669', fontWeight: 'bold', marginTop: 2 },
+  editBtn: { padding: 6, marginRight: 4 },
   deleteBtn: { padding: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', width: '100%', borderRadius: 20, padding: 20 },

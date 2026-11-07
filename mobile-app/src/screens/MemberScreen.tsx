@@ -16,13 +16,31 @@ export default function MemberScreen() {
   ]);
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'Owner' | 'Manager' | 'Viewer'>('Manager');
 
-  const inviteMember = () => {
-    if (!email.trim()) return;
-    setMembers([...members, { id: Date.now().toString(), email, role, status: 'รอตอบรับ' }]);
+  const openAddModal = () => {
+    setEditingId(null);
     setEmail('');
+    setRole('Manager');
+    setModalVisible(true);
+  };
+
+  const openEditModal = (member: MemberItem) => {
+    setEditingId(member.id);
+    setEmail(member.email);
+    setRole(member.role);
+    setModalVisible(true);
+  };
+
+  const saveMember = () => {
+    if (!email.trim()) return;
+    if (editingId) {
+      setMembers(members.map(m => m.id === editingId ? { ...m, email, role } : m));
+    } else {
+      setMembers([...members, { id: Date.now().toString(), email, role, status: 'รอตอบรับ' }]);
+    }
     setModalVisible(false);
   };
 
@@ -36,9 +54,9 @@ export default function MemberScreen() {
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.pageTitle}>จัดการสมาชิก (RBAC)</Text>
-            <Text style={styles.pageSub}>เชิญผู้ใช้งานและกำหนดสิทธิ์ใน Workspace</Text>
+            <Text style={styles.pageSub}>เชิญผู้ใช้งานและแก้ไขสิทธิ์ใน Workspace</Text>
           </View>
-          <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
+          <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
             <Ionicons name="person-add" size={16} color="#FFF" />
             <Text style={styles.addButtonText}>เชิญสมาชิก</Text>
           </TouchableOpacity>
@@ -55,9 +73,14 @@ export default function MemberScreen() {
                 <Text style={styles.meta}>สิทธิ์: {member.role} • {member.status}</Text>
               </View>
               {member.role !== 'Owner' && (
-                <TouchableOpacity onPress={() => removeMember(member.id)} style={styles.deleteBtn}>
-                  <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity onPress={() => openEditModal(member)} style={styles.editBtn}>
+                    <Ionicons name="create-outline" size={18} color="#059669" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => removeMember(member.id)} style={styles.deleteBtn}>
+                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                  </TouchableOpacity>
+                </>
               )}
             </View>
           </View>
@@ -67,7 +90,7 @@ export default function MemberScreen() {
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>👥 เชิญสมาชิกเข้า Workspace</Text>
+            <Text style={styles.modalTitle}>{editingId ? '✏️ แก้ไขข้อมูลและสิทธิ์สมาชิก' : '👥 เชิญสมาชิกเข้า Workspace'}</Text>
             <Text style={styles.label}>อีเมลผู้ใช้งาน</Text>
             <TextInput style={styles.input} placeholder="example@smartiot.local" placeholderTextColor="#94A3B8" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
             <Text style={styles.label}>กำหนดสิทธิ์ (Role)</Text>
@@ -82,8 +105,8 @@ export default function MemberScreen() {
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelText}>ยกเลิก</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.submitBtn} onPress={inviteMember}>
-                <Text style={styles.submitText}>ส่งคำเชิญ</Text>
+              <TouchableOpacity style={styles.submitBtn} onPress={saveMember}>
+                <Text style={styles.submitText}>{editingId ? 'บันทึกการแก้ไข' : 'ส่งคำเชิญ'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -107,6 +130,7 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 16, fontWeight: 'bold', color: '#059669' },
   email: { fontSize: 13, fontWeight: 'bold', color: '#1E293B' },
   meta: { fontSize: 11, color: '#64748B', marginTop: 2 },
+  editBtn: { padding: 6, marginRight: 4 },
   deleteBtn: { padding: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', width: '100%', borderRadius: 20, padding: 20 },

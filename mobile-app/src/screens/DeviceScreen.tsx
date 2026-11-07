@@ -13,11 +13,12 @@ interface DeviceItem {
 
 export default function DeviceScreen() {
   const [devices, setDevices] = useState<DeviceItem[]>([
-    { id: '1', name: 'ปั๊มน้ำหลัก (Main Pump)', zone: 'แปลงเกษตรโซน A', type: 'Relay', isOn: true, statusText: 'ทำงานอัตโนมัติ / เปิดอยู่' },
-    { id: '2', name: 'ระบบพ่นหมอกความชื้น', zone: 'โรงเรือนเพาะชำ', type: 'Relay', isOn: false, statusText: 'ปิดใช้งาน' },
+    { id: '1', name: 'ปั๊มน้ำหลัก (Main Pump)', zone: 'แปลงเกษตรโซน A', type: 'Relay ปั๊มน้ำ', isOn: true, statusText: 'ทำงานอัตโนมัติ / เปิดอยู่' },
+    { id: '2', name: 'ระบบพ่นหมอกความชื้น', zone: 'โรงเรือนเพาะชำ', type: 'ระบบพ่นหมอก', isOn: false, statusText: 'ปิดใช้งาน' },
   ]);
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [selectedZone, setSelectedZone] = useState('แปลงเกษตรโซน A');
   const [deviceType, setDeviceType] = useState('Relay ปั๊มน้ำ');
@@ -32,18 +33,42 @@ export default function DeviceScreen() {
     }));
   };
 
-  const addDevice = () => {
-    if (!newName.trim()) return;
-    const newItem: DeviceItem = {
-      id: Date.now().toString(),
-      name: newName,
-      zone: selectedZone,
-      type: deviceType,
-      isOn: false,
-      statusText: 'ปิดใช้งาน',
-    };
-    setDevices([...devices, newItem]);
+  const openAddModal = () => {
+    setEditingId(null);
     setNewName('');
+    setSelectedZone('แปลงเกษตรโซน A');
+    setDeviceType('Relay ปั๊มน้ำ');
+    setModalVisible(true);
+  };
+
+  const openEditModal = (device: DeviceItem) => {
+    setEditingId(device.id);
+    setNewName(device.name);
+    setSelectedZone(device.zone);
+    setDeviceType(device.type);
+    setModalVisible(true);
+  };
+
+  const saveDevice = () => {
+    if (!newName.trim()) return;
+    if (editingId) {
+      setDevices(devices.map(dev => dev.id === editingId ? {
+        ...dev,
+        name: newName,
+        zone: selectedZone,
+        type: deviceType,
+      } : dev));
+    } else {
+      const newItem: DeviceItem = {
+        id: Date.now().toString(),
+        name: newName,
+        zone: selectedZone,
+        type: deviceType,
+        isOn: false,
+        statusText: 'ปิดใช้งาน',
+      };
+      setDevices([...devices, newItem]);
+    }
     setModalVisible(false);
   };
 
@@ -59,7 +84,7 @@ export default function DeviceScreen() {
             <Text style={styles.pageTitle}>จัดการอุปกรณ์ฮาร์ดแวร์</Text>
             <Text style={styles.pageSub}>ควบคุมรีเลย์และเชื่อมต่อเซนเซอร์รายโซน</Text>
           </View>
-          <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
+          <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
             <Ionicons name="add" size={18} color="#FFF" />
             <Text style={styles.addButtonText}>เพิ่มอุปกรณ์</Text>
           </TouchableOpacity>
@@ -82,6 +107,9 @@ export default function DeviceScreen() {
                 trackColor={{ false: '#CBD5E1', true: '#A7F3D0' }}
                 thumbColor={device.isOn ? '#059669' : '#F8FAFC'}
               />
+              <TouchableOpacity onPress={() => openEditModal(device)} style={styles.editBtn}>
+                <Ionicons name="create-outline" size={18} color="#059669" />
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => deleteDevice(device.id)} style={styles.deleteBtn}>
                 <Ionicons name="trash-outline" size={18} color="#DC2626" />
               </TouchableOpacity>
@@ -90,11 +118,10 @@ export default function DeviceScreen() {
         ))}
       </ScrollView>
 
-      {/* Modal เพิ่มอุปกรณ์แบบฟอร์มเต็มเหมือน Web App */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>➕ เพิ่มอุปกรณ์รีเลย์ / เซนเซอร์ใหม่</Text>
+            <Text style={styles.modalTitle}>{editingId ? '✏️ แก้ไขข้อมูลอุปกรณ์' : '➕ เพิ่มอุปกรณ์รีเลย์ / เซนเซอร์ใหม่'}</Text>
             
             <Text style={styles.label}>ชื่ออุปกรณ์</Text>
             <TextInput style={styles.input} placeholder="เช่น ปั๊มน้ำแปลงผัก Zone B" placeholderTextColor="#94A3B8" value={newName} onChangeText={setNewName} />
@@ -121,8 +148,8 @@ export default function DeviceScreen() {
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelText}>ยกเลิก</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.submitBtn} onPress={addDevice}>
-                <Text style={styles.submitText}>บันทึกอุปกรณ์</Text>
+              <TouchableOpacity style={styles.submitBtn} onPress={saveDevice}>
+                <Text style={styles.submitText}>{editingId ? 'บันทึกการแก้ไข' : 'บันทึกอุปกรณ์'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -146,7 +173,8 @@ const styles = StyleSheet.create({
   deviceName: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
   deviceZone: { fontSize: 11, color: '#475569', marginVertical: 2 },
   deviceStatus: { fontSize: 10, fontWeight: 'bold' },
-  deleteBtn: { marginLeft: 10, padding: 6 },
+  editBtn: { marginLeft: 8, padding: 6 },
+  deleteBtn: { marginLeft: 4, padding: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', width: '100%', borderRadius: 20, padding: 20 },
   modalTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 14 },
