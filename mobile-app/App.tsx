@@ -7,10 +7,11 @@ import HomeScreen from './src/screens/HomeScreen';
 import DeviceScreen from './src/screens/DeviceScreen';
 import ChartScreen from './src/screens/ChartScreen';
 import AutomationScreen from './src/screens/AutomationScreen';
+import NotificationScreen from './src/screens/NotificationScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'home' | 'devices' | 'charts' | 'automation' | 'profile'>('home');
+  const [currentTab, setCurrentTab] = useState<'home' | 'devices' | 'charts' | 'automation' | 'notifications' | 'profile'>('home');
 
   return (
     <SafeAreaView style={styles.container}>
@@ -21,6 +22,7 @@ export default function App() {
         {currentTab === 'devices' && <DeviceScreen />}
         {currentTab === 'charts' && <ChartScreen />}
         {currentTab === 'automation' && <AutomationScreen />}
+        {currentTab === 'notifications' && <NotificationScreen />}
         {currentTab === 'profile' && <ProfileScreen />}
       </View>
 
@@ -45,6 +47,11 @@ export default function App() {
           <Text style={[styles.tabText, currentTab === 'automation' && styles.tabTextActive]}>อัตโนมัติ</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity style={styles.tabItem} onPress={() => setCurrentTab('notifications')}>
+          <Ionicons name={currentTab === 'notifications' ? 'notifications' : 'notifications-outline'} size={18} color={currentTab === 'notifications' ? '#059669' : '#94A3B8'} />
+          <Text style={[styles.tabText, currentTab === 'notifications' && styles.tabTextActive]}>แจ้งเตือน</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.tabItem} onPress={() => setCurrentTab('profile')}>
           <Ionicons name={currentTab === 'profile' ? 'person' : 'person-outline'} size={18} color={currentTab === 'profile' ? '#059669' : '#94A3B8'} />
           <Text style={[styles.tabText, currentTab === 'profile' && styles.tabTextActive]}>โปรไฟล์</Text>
@@ -57,8 +64,8 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   contentArea: { flex: 1 },
-  tabBar: { flexDirection: 'row', backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingVertical: 6, paddingHorizontal: 4 },
+  tabBar: { flexDirection: 'row', backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingVertical: 6, paddingHorizontal: 2 },
   tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  tabText: { fontSize: 9, color: '#94A3B8', fontWeight: '600', marginTop: 2 },
+  tabText: { fontSize: 8.5, color: '#94A3B8', fontWeight: '600', marginTop: 2 },
   tabTextActive: { color: '#059669', fontWeight: 'bold' },
 });
