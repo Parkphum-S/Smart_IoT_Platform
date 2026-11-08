@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 export default function SplashPage() {
   const router = useRouter();
 
-  // ตั้งเวลา 2.5 วินาที แล้วเปลี่ยนไปหน้า /login อัตโนมัติทันที
   useEffect(() => {
+    // หน่วงเวลา 2.5 วินาที แล้วเปลี่ยนเส้นทางไปหน้า Login อัตโนมัติ
     const timer = setTimeout(() => {
       router.push('/login');
     }, 2500);
@@ -16,48 +17,42 @@ export default function SplashPage() {
   }, [router]);
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-slate-950">
-      {/* Background Image ดั้งเดิม */}
-      <div 
-        className="absolute inset-0 z-0 opacity-40 bg-cover bg-center"
-        style={{ backgroundImage: 'url("/images/Gemini_Generated_Image.jpeg")' }}
-      />
-      <div className="absolute inset-0 z-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent" />
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-cover bg-center" style={{ backgroundImage: "url('/images/Gemini_Generated_Image.jpeg')" }}>
+      {/* Dark Overlay สำหรับปรับความมืดภาพพื้นหลังเล็กน้อย */}
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" />
 
-      {/* Main Container */}
-      <div className="relative z-10 w-full max-w-md p-6 mx-4 text-center flex flex-col items-center">
-        
-        {/* Logo Image ดั้งเดิม */}
-        <div className="w-28 h-28 relative mb-6 rounded-3xl overflow-hidden shadow-2xl border border-emerald-500/30 bg-slate-900/50">
-          <img 
-            src="/images/Generated_Image_logo.png" 
+      {/* การ์ดตรงกลางแบบโปร่งแสง (Glassmorphism) */}
+      <div className="relative z-10 w-full max-w-md p-8 bg-gray-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl flex flex-col items-center text-center mx-4">
+        {/* โลโก้ */}
+        <div className="w-20 h-20 mb-5 rounded-2xl bg-white/80 backdrop-blur-md flex items-center justify-center shadow-lg p-2 border border-white/20">
+          <Image 
+            src="/images/logo.png" 
             alt="Smart IoT Logo" 
-            className="w-full h-full object-cover"
+            width={64} 
+            height={64} 
+            className="object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
           />
         </div>
 
-        {/* Badge Status */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-4">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-          IoT Farm Connected
+        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-medium mb-4">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>IoT Farm Connected</span>
         </div>
 
-        {/* Title & Description */}
-        <h1 className="text-3xl font-black text-white tracking-tight mb-2">
+        <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-3 drop-shadow-md">
           Smart IoT Platform
         </h1>
-        <p className="text-sm text-slate-300 leading-relaxed mb-6">
+        <p className="text-xs md:text-sm text-gray-200 max-w-sm leading-relaxed mb-6 drop-shadow">
           ระบบแพลตฟอร์มบริหารจัดการและควบคุมฟาร์มอัจฉริยะผ่านเทคโนโลยี IoT เชื่อมต่อฉับไว เรียลไทม์
         </p>
 
-        {/* Footer Note */}
-        <div className="mt-8 pt-6 border-t border-slate-800/80 w-full">
-          <p className="text-[11px] text-slate-500 font-medium">
-            Smart IoT Platform Solution © 2026
-          </p>
+        <div className="text-[11px] text-gray-300 mt-2">
+          Smart IoT Platform Solution &copy; 2026
         </div>
-
       </div>
-    </div>
+    </main>
   );
 }
