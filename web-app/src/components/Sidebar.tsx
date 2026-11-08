@@ -13,6 +13,7 @@ import {
   Activity, 
   Users, 
   ShieldAlert, 
+  Settings,
   X
 } from 'lucide-react';
 
@@ -34,6 +35,7 @@ export function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarProps) {
     { name: 'สถานะอุปกรณ์ (Diagnostics)', href: '/diagnostics', icon: Activity },
     { name: 'จัดการสมาชิก (RBAC)', href: '/rbac', icon: Users },
     { name: 'ประวัติระบบ (Audit Logs)', href: '/audit-logs', icon: ShieldAlert },
+    { name: 'ตั้งค่าระบบ (Settings)', href: '/settings', icon: Settings },
   ];
 
   return (
@@ -82,7 +84,7 @@ export function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarProps) {
         <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
 
             return (
               <Link

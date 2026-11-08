@@ -14,7 +14,7 @@ const MQTT_BROKER = 'mqtt://localhost:1883';
 let liveSensorData = {
   ZoneA: {
     name: 'แปลงเกษตรโซน A',
-    temp: '32.5 °C',
+    temp: '${sensorData.temp}',
     humidity: '68 %',
     vpd: '1.56 kPa',
     soilMoisture: '45 %',
