@@ -306,6 +306,14 @@ class DeviceService:
             )
         if current not in LIFECYCLE_TRANSITIONS:
             raise DeviceStateConflict("Device has an unsupported lifecycle status.")
+        if (
+            current == "pending_provisioning"
+            and new_status == "active"
+        ):
+            raise DeviceStateConflict(
+                "Pending devices must complete enrollment before activation."
+            )
+
         if new_status not in LIFECYCLE_TRANSITIONS[current]:
             raise DeviceStateConflict("Invalid lifecycle transition.")
 

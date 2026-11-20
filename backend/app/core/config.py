@@ -2,8 +2,11 @@
 
 import base64
 import binascii
+import json
 import os
 import re
+import stat
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -34,6 +37,7 @@ class Settings(BaseSettings):
 
     database_url: PostgresDsn
     migration_database_url: PostgresDsn | None = None
+    fixture_database_url: PostgresDsn | None = None
     migration_database_role: str = "smart_iot_owner"
 
     db_pool_size: int = Field(default=5, ge=1, le=20)
@@ -46,10 +50,14 @@ class Settings(BaseSettings):
 
     secret_key: SecretStr | None = Field(default=None)
     gateway_encryption_key: SecretStr | None = Field(default=None)
+    device_enrollment_broker_key: SecretStr | None = Field(
+        default=None, min_length=1, max_length=80
+    )
     gateway_encryption_keys: dict[str, SecretStr] = Field(default_factory=dict)
     gateway_encryption_key_version: str = Field(
         default="v1", min_length=1, max_length=40
     )
+    gateway_encryption_keyring_file: Path | None = Field(default=None)
     trusted_origins: list[str] = Field(default_factory=list)
 
     @field_validator("gateway_encryption_key")
@@ -185,6 +193,82 @@ class Settings(BaseSettings):
             validated.append(origin)
 
         return validated
+
+    @model_validator(mode="before")
+    @classmethod
+    def load_gateway_encryption_keyring_file(cls, values: object) -> object:
+        """Load a private JSON keyring file before field validation."""
+        if not isinstance(values, dict):
+            return values
+
+        raw_path = values.get("gateway_encryption_keyring_file")
+        if raw_path is None:
+            return values
+
+        if values.get("gateway_encryption_keys"):
+            raise ValueError(
+                "Configure either gateway keyring file or inline keyring, not both."
+            )
+
+        fd = -1
+        try:
+            key_path = Path(raw_path)
+
+            if not key_path.is_absolute():
+                raise ValueError("Gateway keyring file path must be absolute.")
+
+            fd = os.open(
+                key_path,
+                os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+            )
+
+            metadata = os.fstat(fd)
+
+            if not stat.S_ISREG(metadata.st_mode):
+                raise ValueError("Gateway keyring source must be a regular file.")
+
+            if metadata.st_uid != os.getuid():
+                raise ValueError("Gateway keyring file owner mismatch.")
+
+            if stat.S_IMODE(metadata.st_mode) & 0o077:
+                raise ValueError("Gateway keyring file permissions are too broad.")
+
+            if metadata.st_size > 16384:
+                raise ValueError("Gateway keyring file exceeds size limit.")
+
+            with os.fdopen(fd, "rb") as stream:
+                fd = -1
+                payload = stream.read(16385)
+
+            if len(payload) > 16384:
+                raise ValueError("Gateway keyring file exceeds size limit.")
+
+            document = json.loads(payload.decode("utf-8"))
+
+            if (
+                not isinstance(document, dict)
+                or not document
+                or not all(
+                    isinstance(version, str)
+                    and isinstance(encoded, str)
+                    and encoded
+                    for version, encoded in document.items()
+                )
+            ):
+                raise ValueError("Gateway keyring document structure is invalid.")
+
+            result = dict(values)
+            result["gateway_encryption_keys"] = document
+            return result
+
+        except (OSError, TypeError, UnicodeError, ValueError):
+            raise ValueError(
+                "Unable to load a valid private gateway keyring file."
+            ) from None
+
+        finally:
+            if fd >= 0:
+                os.close(fd)
 
     @model_validator(mode="after")
     def validate_keyring_settings(self) -> "Settings":

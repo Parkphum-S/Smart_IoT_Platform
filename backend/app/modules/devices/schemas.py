@@ -1,7 +1,7 @@
 """Public request and response schemas for device management."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
@@ -112,3 +112,24 @@ class GatewaySecretResponse(BaseModel):
     secret_name: str
     created_at: datetime
     updated_at: datetime
+
+
+class DeviceEnrollmentRequest(BaseModel):
+    """Untrusted device enrollment credentials."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    bootstrap_token: SecretStr = Field(min_length=1, max_length=512)
+    credential_identifier: str = Field(min_length=1, max_length=160)
+    password: SecretStr = Field(min_length=1, max_length=1024)
+
+
+class DeviceEnrollmentResponse(BaseModel):
+    """Safe metadata returned after successful device enrollment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    device_id: UUID
+    credential_id: UUID
+    lifecycle_status: Literal["active"]
+    credential_status: Literal["active"]

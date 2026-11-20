@@ -6,6 +6,7 @@ from app.modules.devices import models as devices
 from app.modules.telemetry import models as telemetry
 from app.modules.monitoring import models as monitoring
 from app.modules.automation import models as automation
+from app.integrations.mqtt import models as mqtt
 
 EXPECTED_TABLES = {
     "users", "workspaces", "workspace_members", "user_sessions",
@@ -17,12 +18,14 @@ EXPECTED_TABLES = {
     "device_gateways", "device_gateway_members", "device_gateway_secrets",
     "automation_rules", "automation_conditions", "automation_actions",
     "automation_executions",
+    "mqtt_topic_routes",
+    "device_bootstrap_tokens",
 }
 
 
 def test_all_expected_tables_are_registered():
     assert set(Base.metadata.tables) == EXPECTED_TABLES
-    assert len(Base.metadata.tables) == 27
+    assert len(Base.metadata.tables) == 29
 
 
 def test_every_table_has_a_primary_key():
@@ -135,3 +138,29 @@ def test_membership_history_has_role_and_event_constraints():
 def test_audit_log_workspace_id_has_no_foreign_key():
     table = Base.metadata.tables["audit_logs"]
     assert not table.c.workspace_id.foreign_keys
+
+
+
+def test_mqtt_topic_routes_has_workspace_scoped_device_foreign_key():
+    table = Base.metadata.tables["mqtt_topic_routes"]
+
+    targets = {
+        tuple(element.target_fullname for element in fk.elements)
+        for fk in table.foreign_key_constraints
+    }
+
+    assert ("devices.workspace_id", "devices.id") in targets
+
+
+def test_mqtt_topic_routes_has_exact_topic_and_qos_constraints():
+    table = Base.metadata.tables["mqtt_topic_routes"]
+
+    checks = {
+        constraint.name: str(constraint.sqltext)
+        for constraint in table.constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+
+    assert "ck_mqtt_topic_routes_direction" in checks
+    assert "ck_mqtt_topic_routes_qos" in checks
+    assert "ck_mqtt_topic_routes_exact_topic" in checks

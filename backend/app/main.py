@@ -4,15 +4,18 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router
 from app.api.workspaces import router as workspaces_router
 from app.api.memberships import router as memberships_router
 from app.api.devices import router as devices_router
+from app.api.device_enrollment import router as device_enrollment_router
 from app.api.tuya import router as tuya_router
 
 from app.core.config import get_settings
+from app.core.database_guard import validate_test_database_settings
 from app.infrastructure.database.session import (
     create_database_engine,
     create_session_factory,
@@ -23,6 +26,7 @@ from app.infrastructure.database.session import (
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application resources during startup and shutdown."""
     settings = get_settings()
+    validate_test_database_settings(settings)
 
     engine = create_database_engine(
         str(settings.database_url),
@@ -51,12 +55,30 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     application.include_router(health_router)
     application.include_router(auth_router, prefix=settings.api_v1_prefix)
     application.include_router(workspaces_router, prefix=settings.api_v1_prefix)
     application.include_router(memberships_router, prefix=settings.api_v1_prefix)
     application.include_router(devices_router, prefix=settings.api_v1_prefix)
-    application.include_router(tuya_router, prefix=settings.api_v1_prefix)
+    application.include_router(
+        device_enrollment_router,
+        prefix=settings.api_v1_prefix,
+    )
+
+    # Tuya router already declares its own route aliases.
+    application.include_router(tuya_router)
+
     return application
 
 

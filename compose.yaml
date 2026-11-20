@@ -42,3 +42,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    environment:
+      GATEWAY_ENCRYPTION_KEYRING_FILE: /run/smart-iot-platform/gateway-keyring.json
+      GATEWAY_ENCRYPTION_KEY_VERSION: v20261120_0108
+      MIGRATION_DATABASE_PASSWORD_FILE: /run/smart-iot-platform/migration-credential
+    volumes:
+      - /run/smart-iot-platform/gateway-keyring.json:/run/smart-iot-platform/gateway-keyring.json:ro
+      - /run/smart-iot-platform/migration-credential:/run/smart-iot-platform/migration-credential:ro

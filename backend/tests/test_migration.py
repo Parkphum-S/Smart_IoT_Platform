@@ -190,3 +190,81 @@ def test_owner_invariant_downgrade_removes_only_invariant_objects():
     assert "DROP TABLE" not in downgrade
     assert "membership_history" not in downgrade
     assert "audit_logs" not in downgrade
+
+
+MQTT_TOPIC_ROUTE_MIGRATION = (
+    Path(__file__).parents[1]
+    / "migrations"
+    / "versions"
+    / "20261112_0011_mqtt_topic_routes.py"
+)
+
+
+def test_mqtt_topic_route_migration_has_correct_revision_chain():
+    source = MQTT_TOPIC_ROUTE_MIGRATION.read_text()
+
+    assert 'revision: str = "20261112_0011"' in source
+    assert 'down_revision: Union[str, None] = "20261105_0010"' in source
+
+
+def test_mqtt_topic_route_migration_creates_expected_columns():
+    source = MQTT_TOPIC_ROUTE_MIGRATION.read_text()
+
+    assert 'op.create_table(\n        "mqtt_topic_routes"' in source
+    for column in (
+        '"id"',
+        '"workspace_id"',
+        '"device_id"',
+        '"broker_key"',
+        '"topic"',
+        '"direction"',
+        '"qos"',
+        '"is_enabled"',
+        '"created_at"',
+        '"updated_at"',
+    ):
+        assert column in source
+
+    assert "sa.String(80)" in source
+    assert "sa.String(512)" in source
+    assert "server_default=sa.text(\"true\")" in source
+    assert "server_default=sa.func.now()" in source
+
+
+def test_mqtt_topic_route_migration_creates_required_constraints():
+    source = MQTT_TOPIC_ROUTE_MIGRATION.read_text()
+
+    assert "fk_mqtt_topic_routes_workspace_device" in source
+    assert '"devices.workspace_id", "devices.id"' in source
+    assert 'ondelete="RESTRICT"' in source
+
+    assert "uq_mqtt_topic_routes_broker_topic_direction" in source
+    assert "ck_mqtt_topic_routes_direction" in source
+    assert "ck_mqtt_topic_routes_qos" in source
+    assert "ck_mqtt_topic_routes_broker_key_nonempty" in source
+    assert "ck_mqtt_topic_routes_exact_topic" in source
+
+    assert "position('+' in topic) = 0" in source
+    assert "position('#' in topic) = 0" in source
+
+
+def test_mqtt_topic_route_migration_creates_workspace_device_index():
+    source = MQTT_TOPIC_ROUTE_MIGRATION.read_text()
+
+    assert "ix_mqtt_topic_routes_workspace_device" in source
+    assert '["workspace_id", "device_id", "is_enabled"]' in source
+
+
+def test_mqtt_topic_route_downgrade_protects_existing_routes():
+    source = MQTT_TOPIC_ROUTE_MIGRATION.read_text()
+    downgrade = source.split("def downgrade() -> None:", 1)[1]
+
+    assert "LOCK TABLE mqtt_topic_routes IN ACCESS EXCLUSIVE MODE" in downgrade
+    assert "IF EXISTS (SELECT 1 FROM mqtt_topic_routes)" in downgrade
+    assert "Cannot downgrade: MQTT topic routes exist" in downgrade
+
+    assert downgrade.index("ACCESS EXCLUSIVE") < downgrade.index("IF EXISTS")
+    assert downgrade.index("IF EXISTS") < downgrade.index("op.drop_index")
+    assert downgrade.index("op.drop_index") < downgrade.index(
+        'op.drop_table("mqtt_topic_routes")'
+    )

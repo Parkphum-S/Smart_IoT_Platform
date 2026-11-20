@@ -72,6 +72,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(
+        "LOCK TABLE device_gateway_members IN ACCESS EXCLUSIVE MODE"
+    )
     op.execute("""
         DO $$
         BEGIN

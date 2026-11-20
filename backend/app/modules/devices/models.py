@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, PrimaryKeyConstraint, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -45,23 +45,109 @@ class Device(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class DeviceCredential(UUIDPrimaryKeyMixin, Base):
-    """A device authentication credential or external secret reference."""
+    """A broker-scoped device authentication credential."""
 
     __tablename__ = "device_credentials"
     __table_args__ = (
+        PrimaryKeyConstraint("id", name="pk_device_credentials"),
+        ForeignKeyConstraint(
+            ["workspace_id", "device_id"],
+            ["devices.workspace_id", "devices.id"],
+            ondelete="RESTRICT",
+            name="fk_device_credentials_workspace_device",
+        ),
+        UniqueConstraint(
+            "broker_key",
+            "credential_identifier",
+            name="uq_device_credentials_broker_identifier",
+        ),
+        CheckConstraint(
+            "length(btrim(broker_key)) > 0",
+            name="ck_device_credentials_broker_key_nonempty",
+        ),
+        CheckConstraint(
+            "length(btrim(credential_identifier)) > 0",
+            name="ck_device_credentials_identifier_nonempty",
+        ),
+        CheckConstraint(
+            "length(btrim(credential_type)) > 0",
+            name="ck_device_credentials_type_nonempty",
+        ),
+        CheckConstraint(
+            "(NULLIF(btrim(secret_hash), '') IS NOT NULL) "
+            "<> (NULLIF(btrim(secret_reference), '') IS NOT NULL)",
+            name="ck_device_credentials_exactly_one_secret",
+        ),
+        CheckConstraint(
+            "credential_status IN ('pending', 'active', 'revoked')",
+            name="ck_device_credentials_status",
+        ),
+        CheckConstraint(
+            "expires_at IS NULL OR expires_at > created_at",
+            name="ck_device_credentials_expiry_after_creation",
+        ),
+        CheckConstraint(
+            "(credential_status = 'revoked') = (revoked_at IS NOT NULL)",
+            name="ck_device_credentials_revocation_consistency",
+        ),
         Index("ix_device_credentials_device_id", "device_id"),
+        Index(
+            "ix_device_credentials_workspace_device_status",
+            "workspace_id",
+            "device_id",
+            "credential_status",
+        ),
     )
 
-    device_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("devices.id", ondelete="RESTRICT"), nullable=False)
+    workspace_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        nullable=False,
+    )
+    device_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        nullable=False,
+    )
+    broker_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    credential_identifier: Mapped[str] = mapped_column(
+        String(160),
+        nullable=False,
+    )
     credential_type: Mapped[str] = mapped_column(String(40), nullable=False)
-    secret_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    secret_reference: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    credential_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    secret_hash: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    secret_reference: Mapped[str | None] = mapped_column(
+        String(512),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    credential_status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="pending",
+        server_default="pending",
+    )
+    rotated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
 
 class DeviceGateway(Base):
@@ -291,3 +377,85 @@ class DeviceGroupMember(Base):
     device_group_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
     device_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class DeviceBootstrapToken(UUIDPrimaryKeyMixin, Base):
+    """Single-use, device-bound bootstrap identity token."""
+
+    __tablename__ = "device_bootstrap_tokens"
+    __table_args__ = (
+        PrimaryKeyConstraint(
+            "id",
+            name="pk_device_bootstrap_tokens",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "device_id"],
+            ["devices.workspace_id", "devices.id"],
+            ondelete="RESTRICT",
+            name="fk_device_bootstrap_tokens_workspace_device",
+        ),
+        UniqueConstraint(
+            "token_hash",
+            name="uq_device_bootstrap_tokens_token_hash",
+        ),
+        CheckConstraint(
+            "token_hash ~ '^[0-9a-f]{64}$'",
+            name="ck_device_bootstrap_tokens_hash_format",
+        ),
+        CheckConstraint(
+            "expires_at > created_at",
+            name="ck_device_bootstrap_tokens_expiry",
+        ),
+        CheckConstraint(
+            "consumed_at IS NULL OR consumed_at >= created_at",
+            name="ck_device_bootstrap_tokens_consumed_time",
+        ),
+        CheckConstraint(
+            "revoked_at IS NULL OR revoked_at >= created_at",
+            name="ck_device_bootstrap_tokens_revoked_time",
+        ),
+        CheckConstraint(
+            "NOT (consumed_at IS NOT NULL AND revoked_at IS NOT NULL)",
+            name="ck_device_bootstrap_tokens_terminal_state",
+        ),
+        Index(
+            "ix_device_bootstrap_tokens_workspace_device",
+            "workspace_id",
+            "device_id",
+            "created_at",
+        ),
+        Index(
+            "ix_device_bootstrap_tokens_expires_at",
+            "expires_at",
+        ),
+    )
+
+    workspace_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        nullable=False,
+    )
+    device_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        nullable=False,
+    )
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+    consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )

@@ -56,6 +56,26 @@ class DeviceRepository:
         result = await session.execute(statement)
         return result.scalar_one_or_none()
 
+    async def activate_after_enrollment(
+        self,
+        session: AsyncSession,
+        *,
+        device: Device,
+    ) -> Device:
+        """Activate a pending device as part of an enrollment transaction."""
+        if (
+            device.lifecycle_status != "pending_provisioning"
+            or not device.is_enabled
+        ):
+            raise ValueError(
+                "Device is not eligible for enrollment activation."
+            )
+
+        device.lifecycle_status = "active"
+        device.is_enabled = True
+        await session.flush()
+        return device
+
     async def list_devices(
         self,
         session: AsyncSession,

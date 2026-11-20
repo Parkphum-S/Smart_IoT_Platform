@@ -22,6 +22,7 @@ def clear_settings_environment(monkeypatch):
         "APP_ENV",
         "DATABASE_URL",
         "MIGRATION_DATABASE_URL",
+        "FIXTURE_DATABASE_URL",
         "MIGRATION_DATABASE_ROLE",
         "API_V1_PREFIX",
         "DEBUG",
@@ -41,12 +42,29 @@ TEST_DATABASE_URL = (
 TEST_MIGRATION_DATABASE_URL = (
     "postgresql+asyncpg://migration_user:test_password@127.0.0.1:5432/test_db"
 )
+TEST_FIXTURE_DATABASE_URL = (
+    "postgresql+asyncpg://fixture_user:test_password@127.0.0.1:5432/test_db"
+)
 
 
 def test_migration_database_url_is_optional(monkeypatch):
     monkeypatch.delenv("MIGRATION_DATABASE_URL", raising=False)
     settings = Settings(_env_file=None, database_url=TEST_DATABASE_URL)
     assert settings.migration_database_url is None
+
+
+def test_fixture_database_url_is_optional():
+    settings = Settings(_env_file=None, database_url=TEST_DATABASE_URL)
+    assert settings.fixture_database_url is None
+
+
+def test_fixture_database_url_accepts_separate_connection():
+    settings = Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        fixture_database_url=TEST_FIXTURE_DATABASE_URL,
+    )
+    assert str(settings.fixture_database_url) == TEST_FIXTURE_DATABASE_URL
 
 
 def test_migration_database_url_accepts_separate_connection():
@@ -403,6 +421,7 @@ def test_get_settings_uses_integration_dotenv_only(tmp_path, monkeypatch):
     (tmp_path / ".env.integration").write_text(
         f"APP_ENV=testing\nDATABASE_URL={TEST_DATABASE_URL}\n"
         f"MIGRATION_DATABASE_URL={TEST_MIGRATION_DATABASE_URL}\n"
+        f"FIXTURE_DATABASE_URL={TEST_FIXTURE_DATABASE_URL}\n"
         "MIGRATION_DATABASE_ROLE=smart_iot_test_owner\n"
         "API_V1_PREFIX=/integration-env\n",
         encoding="utf-8",
@@ -413,6 +432,7 @@ def test_get_settings_uses_integration_dotenv_only(tmp_path, monkeypatch):
     assert settings.app_env == "testing"
     assert settings.api_v1_prefix == "/integration-env"
     assert str(settings.migration_database_url) == TEST_MIGRATION_DATABASE_URL
+    assert str(settings.fixture_database_url) == TEST_FIXTURE_DATABASE_URL
     assert settings.migration_database_role == "smart_iot_test_owner"
 
 

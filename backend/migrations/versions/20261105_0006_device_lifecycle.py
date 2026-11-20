@@ -30,6 +30,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(
+        "LOCK TABLE devices IN ACCESS EXCLUSIVE MODE"
+    )
     op.execute("""
         DO $$
         BEGIN

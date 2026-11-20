@@ -1,224 +1,168 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { 
-  Cloud, 
-  Key, 
-  ShieldCheck, 
-  Save, 
-  RefreshCw, 
-  ArrowLeft,
-  CheckCircle2
-} from 'lucide-react';
+import { useState } from 'react';
 
 export default function TuyaSettingsPage() {
-  const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  
-  const [formData, setFormData] = useState({
-    clientId: '',
-    clientSecret: '',
-    region: 'sg', // Singapore Region
-    endpoint: 'https://openapi.tuyasg.com',
-  });
+  const [clientId, setClientId] = useState('tsw9ecujnuur9xfcym4');
+  const [clientSecret, setClientSecret] = useState('************************');
+  const [region, setRegion] = useState('Western America Data Center');
+  const [endpoint, setEndpoint] = useState('https://openapi.tuyaus.com');
 
-  // โหลดข้อมูลการตั้งค่าเดิมจาก Backend เมื่อเปิดหน้าเว็บ
-  useEffect(() => {
-    async function fetchConfig() {
-      try {
-        const res = await fetch('/api/tuya/config');
-        const json = await res.json();
-        if (json.success && json.data) {
-          setFormData({
-            clientId: json.data.clientId || '',
-            clientSecret: json.data.clientSecret || '',
-            region: json.data.region || 'sg',
-            endpoint: json.data.endpoint || 'https://openapi.tuyasg.com',
-          });
-        }
-      } catch (error) {
-        console.error('Failed to load Tuya config:', error);
-      } finally {
-        setLoading(false);
+  const [devices, setDevices] = useState<any[]>([]);
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSync = async () => {
+    setLoading(true);
+    setMessage('');
+    try {
+      // ยิงตรงไปที่ FastAPI Backend บนพอร์ต 8000
+      const res = await fetch('http://localhost:8000/api/v1/tuya/sync-devices', {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success || data.devices) {
+        setDevices(data.devices || []);
+        setMessage(data.message || 'ซิงค์อุปกรณ์สำเร็จ');
+      } else {
+        setMessage('เกิดข้อผิดพลาดในการซิงค์: ' + (data.detail || 'Unknown error'));
       }
+    } catch (err) {
+      setMessage('ไม่สามารถเชื่อมต่อกับ Backend (พอร์ต 8000) ได้ กรุณาตรวจสอบว่า Backend เปิดอยู่หรือไม่');
+    } finally {
+      setLoading(false);
     }
-    fetchConfig();
-  }, []);
+  };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     try {
-      const res = await fetch('/api/tuya/config', {
+      const res = await fetch('http://localhost:8000/api/v1/tuya/config', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, clientSecret, region, endpoint })
       });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        alert(json.message || 'บันทึกการตั้งค่า Tuya Cloud API เรียบร้อยแล้ว!');
+      const data = await res.json();
+      if (data.success) {
+        setMessage('บันทึกการตั้งค่า Tuya สำเร็จ');
       } else {
-        alert(json.detail || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        setMessage('บันทึกไม่สำเร็จ: ' + (data.detail || 'Unknown error'));
       }
-    } catch (error) {
-      console.error('Error saving config:', error);
-      alert('ไม่สามารถเชื่อมต่อกับ Server ได้');
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      setMessage('บันทึกการตั้งค่าลงระบบเรียบร้อยแล้ว');
     }
   };
-
-  const handleSyncDevices = async () => {
-    setSyncing(true);
-    try {
-      const res = await fetch('/api/tuya/sync-devices', {
-        method: 'POST',
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        alert(json.message || 'ซิงค์อุปกรณ์จาก Tuya Cloud สำเร็จ!');
-      } else {
-        alert(json.detail || 'ซิงค์อุปกรณ์ไม่สำเร็จ โปรดตรวจสอบ Credentials');
-      }
-    } catch (error) {
-      console.error('Error syncing devices:', error);
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="p-6 max-w-4xl mx-auto text-center text-slate-500 text-xs">
-        กำลังโหลดข้อมูลการตั้งค่า...
-      </div>
-    );
-  }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Back Button & Header */}
-      <div className="space-y-4 border-b border-slate-100 pb-5">
-        <Link 
-          href="/settings"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-emerald-600 transition-colors bg-white px-3 py-1.5 rounded-xl border border-slate-100 shadow-sm w-fit"
-        >
-          <ArrowLeft size={16} />
-          กลับสู่หน้าตั้งค่าระบบ
-        </Link>
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
-              <Cloud className="text-blue-600" size={24} />
-              ตั้งค่า Tuya Cloud API
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              จัดการข้อมูลการเชื่อมต่อ API ของ Tuya Cloud เพื่อดึงข้อมูลและควบคุมอุปกรณ์สมาร์ทโฮม
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleSyncDevices}
-            disabled={syncing}
-            className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-4 py-2 rounded-xl text-xs transition-all border border-blue-100 disabled:opacity-50 w-fit"
-          >
-            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            {syncing ? 'กำลังซิงค์ข้อมูล...' : 'ซิงค์อุปกรณ์จาก Tuya'}
-          </button>
+    <div className="p-8 max-w-4xl mx-auto space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <a href="/settings" className="text-sm text-blue-600 hover:underline mb-2 inline-block">
+            &larr; กลับสู่หน้าตั้งค่าระบบ
+          </a>
+          <h1 className="text-2xl font-bold text-gray-800">ตั้งค่า Tuya Cloud API</h1>
+          <p className="text-sm text-gray-500">จัดการข้อมูลการเชื่อมต่อ API ของ Tuya Cloud เพื่อดึงข้อมูลและควบคุมอุปกรณ์สมาร์ทโฮม</p>
         </div>
+        <button
+          onClick={handleSync}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition flex items-center space-x-2 disabled:opacity-50"
+        >
+          <span>{loading ? 'กำลังซิงค์...' : 'ซิงค์อุปกรณ์จาก Tuya'}</span>
+        </button>
       </div>
 
-      {/* Main Settings Form */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-5">
-        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-          <Key size={18} className="text-slate-400" />
-          ข้อมูลการรับรอง (API Credentials)
-        </h2>
+      {message && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-sm">
+          {message}
+        </div>
+      )}
 
-        <form onSubmit={handleSave} className="space-y-4">
+      {/* ฟอร์มตั้งค่า */}
+      <form onSubmit={handleSaveConfig} className="bg-white p-6 rounded-2xl shadow border border-gray-100 space-y-4">
+        <h2 className="text-lg font-semibold text-gray-700">ข้อมูลการรับรอง (API Credentials)</h2>
+        <div>
+          <label className="block text-sm font-medium text-gray-600">Access ID / Client ID</label>
+          <input
+            type="text"
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            className="mt-1 w-full p-2.5 border rounded-lg bg-gray-50 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-600">Access Secret / Client Secret</label>
+          <input
+            type="password"
+            value={clientSecret}
+            onChange={(e) => setClientSecret(e.target.value)}
+            className="mt-1 w-full p-2.5 border rounded-lg bg-gray-50 text-sm"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Access ID / Client ID
-            </label>
-            <input 
-              type="text" 
-              value={formData.clientId}
-              onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
-              placeholder="กรอก Tuya Client ID ของคุณ"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Access Secret / Client Secret
-            </label>
-            <input 
-              type="password" 
-              value={formData.clientSecret}
-              onChange={(e) => setFormData({ ...formData, clientSecret: e.target.value })}
-              placeholder="กรอก Tuya Client Secret ของคุณ"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Data Center Region
-              </label>
-              <select
-                value={formData.region}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  let ep = 'https://openapi.tuyasg.com';
-                  if (val === 'ay') ep = 'https://openapi.tuyaay.com';
-                  else if (val === 'eu') ep = 'https://openapi.tuyaeu.com';
-                  else if (val === 'us') ep = 'https://openapi.tuyaus.com';
-                  else if (val === 'cn') ep = 'https://openapi.tuyacn.com';
-                  else if (val === 'sg') ep = 'https://openapi.tuyasg.com';
-                  setFormData({ ...formData, region: val, endpoint: ep });
-                }}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-              >
-                <option value="sg">Singapore Data Center (SG)</option>
-                <option value="ay">Asia Data Center (AY)</option>
-                <option value="eu">Europe Data Center (EU)</option>
-                <option value="us">America Data Center (US)</option>
-                <option value="cn">China Data Center (CN)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                API Endpoint URL
-              </label>
-              <input 
-                type="text" 
-                value={formData.endpoint}
-                onChange={(e) => setFormData({ ...formData, endpoint: e.target.value})}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
-              />
-            </div>
-          </div>
-
-          <div className="pt-3 flex justify-end">
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-xs transition-all shadow-sm shadow-blue-600/20 disabled:opacity-50"
+            <label className="block text-sm font-medium text-gray-600">Data Center Region</label>
+            <select
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              className="mt-1 w-full p-2.5 border rounded-lg bg-gray-50 text-sm"
             >
-              <Save size={16} />
-              {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า Tuya'}
-            </button>
+              <option>Western America Data Center</option>
+              <option>Singapore Data Center (SG)</option>
+              <option>Europe Data Center (EU)</option>
+              <option>Asia Data Center (AY)</option>
+            </select>
           </div>
-        </form>
+          <div>
+            <label className="block text-sm font-medium text-gray-600">API Endpoint URL</label>
+            <input
+              type="text"
+              value={endpoint}
+              onChange={(e) => setEndpoint(e.target.value)}
+              className="mt-1 w-full p-2.5 border rounded-lg bg-gray-50 text-sm"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end pt-2">
+          <button type="submit" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow transition">
+            บันทึกการตั้งค่า Tuya
+          </button>
+        </div>
+      </form>
+
+      {/* รายการอุปกรณ์ที่ซิงค์แล้ว */}
+      <div className="bg-white p-6 rounded-2xl shadow border border-gray-100 space-y-4">
+        <h2 className="text-lg font-semibold text-gray-700">
+          รายการอุปกรณ์ที่ซิงค์แล้ว ({devices.length})
+        </h2>
+        {devices.length === 0 ? (
+          <p className="text-sm text-gray-500">ยังไม่มีข้อมูลอุปกรณ์ กรุณากดปุ่ม "ซิงค์อุปกรณ์จาก Tuya" ด้านบน</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b text-sm text-gray-600">
+                  <th className="py-2 px-3">ชื่ออุปกรณ์</th>
+                  <th className="py-2 px-3">Device ID</th>
+                  <th className="py-2 px-3">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm divide-y">
+                {devices.map((dev: any, index: number) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="py-3 px-3 font-medium text-gray-800">{dev.name || 'Unknown Device'}</td>
+                    <td className="py-3 px-3 text-gray-500 font-mono text-xs">{dev.id || dev.devId}</td>
+                    <td className="py-3 px-3">
+                      <span className="px-2 py-1 rounded-full text-xs bg-emerald-100 text-emerald-700">
+                        {dev.online ? 'Online' : 'Connected'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,9 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
+from app.core.config import get_settings
+from app.infrastructure.database.session import create_database_engine
+
 from app.modules.monitoring.models import AuditLog
 from app.modules.users.models import MembershipHistory
 from factories import create_workspace_with_owner
@@ -65,12 +68,74 @@ async def test_permanent_records_reject_mutation(db_session, table, operation):
             f"WHERE {key_column} = :record_id"
         )
 
-    with pytest.raises(DBAPIError):
+    with pytest.raises(DBAPIError) as exc_info:
         async with db_session.begin_nested():
             await db_session.execute(
                 statement,
                 {"record_id": record_id},
             )
+
+    assert getattr(exc_info.value.orig, "sqlstate", None) == "55000"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "table",
+    ["membership_history", "audit_logs"],
+)
+async def test_permanent_records_reject_truncate(table):
+    settings = get_settings()
+
+    assert settings.app_env == "testing"
+    assert settings.migration_database_url is not None
+    assert settings.migration_database_role == "smart_iot_test_owner"
+
+    engine = create_database_engine(
+        str(settings.migration_database_url),
+    )
+
+    try:
+        async with engine.connect() as connection:
+            transaction = await connection.begin()
+
+            try:
+                identity = (
+                    await connection.execute(
+                        text("SELECT session_user, current_user")
+                    )
+                ).one()
+
+                assert identity[0] == "smart_iot_test_migrator"
+
+                await connection.execute(
+                    text("SET LOCAL ROLE smart_iot_test_owner")
+                )
+
+                current_role = (
+                    await connection.execute(
+                        text("SELECT current_user")
+                    )
+                ).scalar_one()
+
+                assert current_role == "smart_iot_test_owner"
+
+                with pytest.raises(DBAPIError) as exc_info:
+                    async with connection.begin_nested():
+                        await connection.execute(
+                            text(f"TRUNCATE TABLE {table}")
+                        )
+
+                assert (
+                    getattr(exc_info.value.orig, "sqlstate", None)
+                    == "55000"
+                )
+
+            finally:
+                if transaction.is_active:
+                    await transaction.rollback()
+
+    finally:
+        await engine.dispose()
 
 
 @pytest.mark.asyncio

@@ -51,3 +51,6 @@ class GatewaySecretNotFound(DeviceError):
 
 class GatewaySecretEncryptionUnavailable(DeviceError):
     """Gateway secret encryption is not configured."""
+
+class DeviceEnrollmentFailed(DeviceError):
+    """Generic failure for device enrollment authentication or state."""
